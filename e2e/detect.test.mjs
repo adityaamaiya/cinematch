@@ -5,7 +5,7 @@ import assert from 'node:assert';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { movieFromVideoTitle } = require('../extension/content.js');
+const { movieFromVideoTitle, clean } = require('../extension/content.js');
 
 test('movieFromVideoTitle strips trailer/clip cruft to the film name', () => {
   const cases = [
@@ -19,5 +19,19 @@ test('movieFromVideoTitle strips trailer/clip cruft to the film name', () => {
   ];
   for (const [input, want] of cases) {
     assert.strictEqual(movieFromVideoTitle(input), want, `"${input}"`);
+  }
+});
+
+test('clean strips Wikipedia disambiguation + year suffixes', () => {
+  const cases = [
+    ['Parasite (2019 film)', 'Parasite'],
+    ['Interstellar (film)', 'Interstellar'],
+    ['The Office (American TV series)', 'The Office'],
+    ['Dune (2021 film)', 'Dune'],
+    ['Inception (2010)', 'Inception'],
+    ['Interstellar', 'Interstellar'], // untouched
+  ];
+  for (const [input, want] of cases) {
+    assert.strictEqual(clean(input), want, `"${input}"`);
   }
 });

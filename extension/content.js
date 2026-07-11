@@ -5,6 +5,8 @@
 function clean(text) {
   return (text || '')
     .replace(/\s*[-|–]\s*(Netflix|Prime Video|JioCinema|Wikipedia|Disney\+ Hotstar).*$/i, '')
+    // Wikipedia disambiguation suffix: "Parasite (2019 film)", "The Office (American TV series)".
+    .replace(/\s*\([^)]*\b(?:film|series)\b[^)]*\)\s*$/i, '')
     .replace(/\s*\(\d{4}\)\s*$/, '') // trailing year
     .replace(/\s+/g, ' ')
     .trim();
@@ -147,5 +149,5 @@ if (
 
 // Export the pure helpers for unit tests (no-op in the browser, where `module` is undefined).
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { movieFromVideoTitle };
+  module.exports = { movieFromVideoTitle, clean };
 }
