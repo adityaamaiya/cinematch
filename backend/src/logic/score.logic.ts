@@ -95,6 +95,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       year: movie.year,
       verdict: scored.verdict,
       tmdbRating: movie.rating,
+      voteCount: movie.voteCount,
       tasteMatch: scored.tasteMatch,
       posterUrl: movie.posterUrl,
       trailerUrl: officialTrailer ?? youtubeSearchUrl(movie.title, movie.year),

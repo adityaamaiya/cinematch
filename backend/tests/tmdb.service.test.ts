@@ -148,6 +148,20 @@ describe('TmdbService.searchTitle', () => {
     expect(movie?.tmdbId).toBe(1);
   });
 
+  it('returns null when no candidate title matches the query (confidence gate)', async () => {
+    // A non-title lookup (e.g. a random page <h1>) — TMDB returns an unrelated film; we reject it.
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        ...GENRE_ROUTES,
+        '/search/multi': {
+          body: { results: [{ id: 1, media_type: 'movie', title: 'Pasta', popularity: 999, genre_ids: [28] }] },
+        },
+      }),
+    );
+    expect(await service.searchTitle('How To Cook Dinner Tonight')).toBeNull();
+  });
+
   it('returns null when there are no movie/tv results', async () => {
     vi.stubGlobal(
       'fetch',

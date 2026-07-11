@@ -26,6 +26,7 @@ interface TmdbSearchItem {
   release_date?: string; // movie
   first_air_date?: string; // tv
   vote_average?: number;
+  vote_count?: number;
   popularity?: number;
   genre_ids?: number[];
   poster_path?: string | null;
@@ -81,21 +82,27 @@ export class TmdbService implements ITmdbService {
   ): TmdbSearchItem | null {
     if (items.length === 0) return null;
     const wanted = title.trim().toLowerCase();
+    const nameMatches = (name: string) =>
+      name === wanted || name.includes(wanted) || wanted.includes(name);
     const scored = items
       .map((item) => {
         const name = (item.title ?? item.name ?? '').toLowerCase();
         const itemYear = this.yearOf(item);
         let score = 0;
         if (name === wanted) score += 100;
-        else if (name.includes(wanted) || wanted.includes(name)) score += 40;
+        else if (nameMatches(name)) score += 40;
         if (year && itemYear === year) score += 30;
         const langRank = preferredLanguages.indexOf(item.original_language ?? '');
         if (langRank >= 0) score += Math.max(24 - langRank * 6, 6);
         score += Math.min(item.popularity ?? 0, 50) / 10;
-        return { item, score };
+        return { item, name, score };
       })
       .sort((a, b) => b.score - a.score);
-    return scored[0].item;
+    // Confidence gate: if even the best candidate's title doesn't match the query at all, this was
+    // a non-title lookup (e.g. a random page's <h1>) — return null so the popup shows manual search
+    // instead of a bogus verdict for whatever film TMDB guessed.
+    const best = scored[0];
+    return best.name && nameMatches(best.name) ? best.item : null;
   }
 
   // JustWatch-via-TMDB availability for one country. Returns null when TMDB has no data.
@@ -162,6 +169,7 @@ export class TmdbService implements ITmdbService {
       title: item.title ?? item.name ?? 'Unknown',
       year: this.yearOf(item),
       rating: item.vote_average ?? 0,
+      voteCount: item.vote_count,
       genres: (item.genre_ids ?? []).map((id) => map.get(id)).filter((g): g is string => !!g),
       language: item.original_language,
       posterUrl: item.poster_path ? `${IMAGE_BASE}${item.poster_path}` : undefined,

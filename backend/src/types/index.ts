@@ -55,6 +55,8 @@ export interface TmdbMovie {
   year?: number;
   /** TMDB vote_average, 0–10. */
   rating: number;
+  /** TMDB vote_count — how many ratings back the average. ~0 = too new to trust the verdict. */
+  voteCount?: number;
   /** TMDB genre names, e.g. ["Action", "Thriller"]. */
   genres: string[];
   /** TMDB original_language (ISO 639-1, e.g. "en", "hi", "ta"). Used to disambiguate same-name titles. */
@@ -104,6 +106,8 @@ export interface ScoreResult {
   /** Objective verdict from the TMDB rating band — never altered by the profile. */
   verdict: Verdict;
   tmdbRating: number;
+  /** How many TMDB votes back the rating. Low + released → popup shows "too new" instead of a verdict. */
+  voteCount?: number;
   /** Personalised taste-match line, or null when there's no profile / no genre overlap. */
   tasteMatch: TasteMatch | null;
   posterUrl?: string;
