@@ -71,6 +71,16 @@ one). Falls back to TMDB popularity when nothing else distinguishes them.
 
 ---
 
+## Design choices (why it's built this way)
+
+- **A backend at all** — API keys (TMDB, OMDb) can't ship inside a browser extension; anyone can unpack it. The server holds the secrets and proxies the calls.
+- **Cross-device** — watchlist + taste profile live server-side, so they follow you across browsers and machines instead of being trapped in one browser's storage.
+- **MongoDB, not browser storage** — a shared, persistent lookup cache (instant repeat views, protects the TMDB quota) plus structured, queryable data that survives a reinstall.
+- **Logic on the server** — the extension is a thin renderer; the taste algorithm, language priority, and match gates deploy server-side in seconds, with no Chrome Web Store review between iterations.
+- **Security** — HTTPS (Let's Encrypt), per-IP rate limiting, input validation (Zod), and a bearer token (`SYNC_TOKEN`) guarding the profile-write endpoint. No user login — single-tenant by design.
+- **Single-tenant** — one deployment = one person's taste. Fork it, add your keys, seed your ratings, and it re-tunes for you.
+- **EC2 + Nginx + PM2 + GitHub Actions** — a persistent, always-on API + database and an end-to-end deploy pipeline. (A serverless proxy would also hide the keys; EC2 was a deliberate choice for a long-lived server + DB and the ops experience.)
+
 ## Run the backend
 
 ```bash

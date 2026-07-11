@@ -34,22 +34,30 @@ export interface RatedSignals {
   language?: string;
 }
 
-// Languages the user watches enough to matter (≥ this many rated films), most-watched first.
-// Used to break same-name-title ties in TMDB search. Noise guard drops one-off languages.
+// Languages the user watches enough to matter (≥ this many rated films). Used to break same-name
+// title ties in TMDB search. Noise guard drops one-off languages.
 const LANGUAGE_MIN_COUNT = 3;
+
+// Same-name disambiguation order, in TIERS — two forces pull opposite ways. TMDB popularity already
+// favours big English titles, so English must NOT lead (else a global English hit wins every tie,
+// e.g. the English "Drishyam" over the Hindi one). But English must NOT be dead last either, or an
+// obscure same-name foreign remake wins (the Japanese "Suits" beating the US mega-hit). So:
+//   tier 0 — the owner's home (Indian) languages   → win ties first
+//   tier 1 — English                                → the global default, middle
+//   tier 2 — everything else (ko, ja, …)            → last
+// Within a tier, ordered by how much the user actually watches.
+// ponytail: home set is hardcoded for this (India-based) deployment; a forker edits it or lifts it
+// to config if their region differs.
+const HOME_LANGUAGES = new Set(['hi', 'ta', 'te', 'ml', 'kn', 'bn', 'mr', 'pa', 'gu', 'or', 'as', 'ur']);
+const langTier = (lang: string): number => (HOME_LANGUAGES.has(lang) ? 0 : lang === 'en' ? 1 : 2);
 
 export function rankLanguages(films: RatedSignals[]): string[] {
   const counts: Record<string, number> = {};
   for (const f of films) if (f.language) counts[f.language] = (counts[f.language] ?? 0) + 1;
-  const ranked = Object.entries(counts)
+  return Object.entries(counts)
     .filter(([, n]) => n >= LANGUAGE_MIN_COUNT)
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => langTier(a[0]) - langTier(b[0]) || b[1] - a[1])
     .map(([lang]) => lang);
-  // Demote English to the back: TMDB popularity already skews toward English/Hollywood, so for a
-  // same-name tie we want the user's regional languages to win first; English still beats a wholly
-  // unlisted language, and a genuinely English title resolves via popularity anyway.
-  const nonEn = ranked.filter((l) => l !== 'en');
-  return nonEn.length < ranked.length ? [...nonEn, 'en'] : ranked;
 }
 
 // Affinity = per-key mean verdict-weight minus the user's overall mean (relative preference, to

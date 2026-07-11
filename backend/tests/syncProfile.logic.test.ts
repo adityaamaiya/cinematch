@@ -34,18 +34,20 @@ describe('buildAffinities', () => {
 describe('rankLanguages', () => {
   const film = (language?: string): RatedSignals => ({ weight: 4, genres: [], language });
 
-  it('orders by count but demotes English to the back (popularity already favors it)', () => {
+  it('tiers home languages first, then English, then others (each by count)', () => {
     const films = [
-      ...Array(6).fill(0).map(() => film('en')), // most-watched, but demoted
-      ...Array(5).fill(0).map(() => film('hi')),
-      ...Array(3).fill(0).map(() => film('ta')),
-      film('ko'), // only 1 → dropped
-      film(undefined), // no language → ignored
+      ...Array(6).fill(0).map(() => film('en')),  // most-watched, but English sits in the middle tier
+      ...Array(5).fill(0).map(() => film('hi')),  // home language
+      ...Array(3).fill(0).map(() => film('ta')),  // home language
+      ...Array(4).fill(0).map(() => film('ko')),  // other → last tier, even though more-watched than ta
+      film('ja'), // only 1 → dropped
+      film(undefined),
     ];
-    expect(rankLanguages(films)).toEqual(['hi', 'ta', 'en']);
+    // home (hi, ta by count) → en → other (ko). This is why the US "Suits" (en) beats a JA remake.
+    expect(rankLanguages(films)).toEqual(['hi', 'ta', 'en', 'ko']);
   });
 
-  it('leaves the order alone when there is no English', () => {
+  it('keeps home-language order when there is no English', () => {
     const films = [
       ...Array(5).fill(0).map(() => film('hi')),
       ...Array(3).fill(0).map(() => film('ta')),
