@@ -17,8 +17,22 @@ async function main(): Promise<void> {
   const ctx = await chromium.launchPersistentContext(config.sessionDir, {
     headless: false,
     viewport: null,
+    channel: 'chrome', // use the installed Google Chrome, not Playwright's bundled Chromium
   });
+  // tsx/esbuild adds a `__name` helper to functions to keep their .name; that helper
+  // doesn't exist in the page, so page.evaluate() throws "__name is not defined".
+  // Define a no-op shim in every document so evaluated code runs.
+  await ctx.addInitScript(() => {
+    // @ts-expect-error - patching the page global
+    window.__name = window.__name || ((fn) => fn);
+  });
+
   const page = ctx.pages()[0] ?? (await ctx.newPage());
+  // addInitScript only applies to future navigations; seed the already-open doc too.
+  await page.evaluate(() => {
+    // @ts-expect-error - patching the page global
+    window.__name = window.__name || ((fn) => fn);
+  }).catch(() => {});
 
   try {
     await ensureLoggedIn(page, config.profileUrl);

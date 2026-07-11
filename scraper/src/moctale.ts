@@ -15,6 +15,21 @@ async function waitForEnter(message: string): Promise<void> {
   rl.close();
 }
 
+// Cloudflare's managed challenge renders a "Just a moment..." interstitial and only then
+// redirects to the real page. `domcontentloaded` fires on the interstitial, so navigate and
+// then WAIT for the challenge to clear (cf_clearance cookie from the manual login makes it quick).
+async function gotoStable(page: Page, url: string): Promise<void> {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page
+    .waitForFunction(() => !/just a moment|checking your browser/i.test(document.title), {
+      timeout: 30_000,
+    })
+    .catch(() => {
+      console.warn('⚠️  Cloudflare challenge did not clear in 30s — page may be incomplete.');
+    });
+  await page.waitForLoadState('networkidle').catch(() => {});
+}
+
 async function isLoggedOut(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const hasPassword = !!document.querySelector('input[type="password"]');
@@ -25,13 +40,13 @@ async function isLoggedOut(page: Page): Promise<boolean> {
 
 // Navigate to the profile; if not logged in, pause for the human to log in (Cloudflare + creds).
 export async function ensureLoggedIn(page: Page, profileUrl: string): Promise<void> {
-  await page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
+  await gotoStable(page, profileUrl);
   if (await isLoggedOut(page)) {
     await waitForEnter(
       '\n👉 Log in to Moctale in the browser window (username/phone + password + Cloudflare),\n' +
         '   then come back here and press Enter to continue... ',
     );
-    await page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
+    await gotoStable(page, profileUrl);
   }
 }
 
@@ -57,7 +72,7 @@ export async function dumpHtml(page: Page, file: string): Promise<void> {
 }
 
 export async function scrapeReviews(page: Page, profileUrl: string): Promise<RawReviewCard[]> {
-  await page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
+  await gotoStable(page, profileUrl);
   await autoScroll(page);
   return page.evaluate(() => {
     const VERDICTS = ['Skip', 'Timepass', 'Go For It', 'Perfection'];
@@ -94,7 +109,7 @@ export async function scrapeReviews(page: Page, profileUrl: string): Promise<Raw
 }
 
 export async function scrapeWatchlist(page: Page, url: string): Promise<RawWatchItem[]> {
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await gotoStable(page, url);
   await autoScroll(page);
   return page.evaluate(() => {
     const norm = (s: string | null) => (s ?? '').replace(/\s+/g, ' ').trim();
