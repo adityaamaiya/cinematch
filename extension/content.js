@@ -33,7 +33,8 @@ function firstText(selectors) {
   return null;
 }
 
-const detectors = {
+// `var` (not `const`) so an accidental re-injection into the same page can't throw a redeclare error.
+var detectors = {
   'netflix.com': () =>
     // Only a watch/title page shows one title; the home grid has none.
     /\/(watch|title)\//.test(location.pathname)

@@ -414,8 +414,12 @@ function pickTitle(title, year) {
 // the current tab) and retry — so detection works on any site, not just the built-in ones.
 function detectFromPage() {
   if (!activeTab?.id) return renderManual();
-  askForTitle((resp) => {
+  askForTitle((resp, hadReceiver) => {
     if (resp?.title) return scoreTitle(resp.title, resp.year);
+    // A content script answered but found no title (e.g. Google with no knowledge panel) → go manual.
+    // Only inject when nothing answered (no content script on this site) — injecting into a page that
+    // already has the script re-runs it and throws a redeclare error.
+    if (hadReceiver) return renderManual('No movie/show detected');
     chrome.scripting.executeScript({ target: { tabId: activeTab.id }, files: ['content.js'] }, () => {
       if (chrome.runtime.lastError) return renderManual('No movie/show detected'); // restricted page
       askForTitle((r2) => (r2?.title ? scoreTitle(r2.title, r2.year) : renderManual('No movie/show detected')));
@@ -424,7 +428,8 @@ function detectFromPage() {
 }
 function askForTitle(cb) {
   chrome.tabs.sendMessage(activeTab.id, { type: 'DETECT_TITLE' }, (resp) => {
-    cb(chrome.runtime.lastError ? null : resp);
+    const hadReceiver = !chrome.runtime.lastError; // false = no content script listening
+    cb(hadReceiver ? resp : null, hadReceiver);
   });
 }
 

@@ -104,6 +104,23 @@ async function main() {
   await page.waitForFunction(() => document.body.innerText.includes('Too new'), { timeout: 5000 });
   assert.ok(!(await page.locator('#gauge').count()), 'unrated title shows no gauge/verdict');
 
+  // Regression: a content script that answers with NO title (e.g. Google with no panel) → manual
+  // search, and must NOT re-inject content.js (double-inject throws "detectors already declared").
+  const noTitle = await browser.newPage();
+  await noTitle.addInitScript(`
+    const s = { get: () => Promise.resolve({}), set: () => Promise.resolve(), remove: () => Promise.resolve() };
+    window.__injected = false;
+    window.chrome = {
+      runtime: {},
+      storage: { local: s, session: s },
+      scripting: { executeScript: (_a, cb) => { window.__injected = true; cb && cb(); } },
+      tabs: { query: () => Promise.resolve([{ id: 1, url: 'https://ex.com/p' }]), sendMessage: (_i, _m, cb) => cb({}) },
+    };`);
+  await noTitle.goto(popupPath);
+  await noTitle.waitForSelector('#search', { timeout: 5000 });
+  assert.strictEqual(await noTitle.evaluate(() => window.__injected), false, 'does not re-inject when a content script already answered');
+  await noTitle.close();
+
   await browser.close();
   console.log('✓ popup e2e passed: gauge, verdict, trailer, provider, taste, poster, credits, awards, watchlist');
 }
