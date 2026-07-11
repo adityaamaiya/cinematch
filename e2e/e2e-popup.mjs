@@ -92,6 +92,18 @@ async function main() {
     }, t);
   assert.notStrictEqual(await bgFor('dark'), await bgFor('light'), 'theme changes the background');
 
+  // Regression: a released but unrated title (tmdbRating 0) shows "Too new", not a Skip verdict.
+  await page.unroute('**/score*');
+  await page.route('**/score*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { ...SCORE.data, verdict: 'Skip', tmdbRating: 0, voteCount: 0 } }),
+    }),
+  );
+  await page.goto(popupPath);
+  await page.waitForFunction(() => document.body.innerText.includes('Too new'), { timeout: 5000 });
+  assert.ok(!(await page.locator('#gauge').count()), 'unrated title shows no gauge/verdict');
+
   await browser.close();
   console.log('✓ popup e2e passed: gauge, verdict, trailer, provider, taste, poster, credits, awards, watchlist');
 }

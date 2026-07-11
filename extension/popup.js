@@ -186,10 +186,12 @@ function renderScore(data) {
       sub: data.releaseDate ? `🍿 Releases ${escapeHtml(data.releaseDate)}` : '',
     });
   }
-  // Released but barely rated → the TMDB average is noise; don't show a verdict. Only when we
-  // actually have a vote count — entries cached before voteCount existed omit it, and (like the
-  // `released` guard) a missing value is treated as "rated" so old cache entries still show a verdict.
-  if (typeof data.voteCount === 'number' && data.voteCount < MIN_VOTES) {
+  // Released but effectively unrated → the TMDB average is noise; show that instead of a verdict.
+  // tmdbRating 0 means "no votes" on TMDB (no real film averages exactly 0), which also covers
+  // cache entries stored before voteCount existed; voteCount < MIN catches new films with a few
+  // noisy votes (a non-zero average from 2 people).
+  const unrated = data.tmdbRating === 0 || (typeof data.voteCount === 'number' && data.voteCount < MIN_VOTES);
+  if (unrated) {
     return renderStatus(data, { headline: '🆕 Too new', sub: 'Not enough ratings yet' });
   }
 
