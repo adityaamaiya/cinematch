@@ -50,6 +50,39 @@ function legendHtml() {
     .join('')}</div>`;
 }
 
+function providerChips(list) {
+  return list
+    .map(
+      (p) =>
+        `<span class="prov">${p.logoUrl ? `<img src="${escapeHtml(p.logoUrl)}" alt="" />` : ''}<span>${escapeHtml(p.name)}</span></span>`,
+    )
+    .join('');
+}
+
+// Where-to-watch (JustWatch via TMDB). Licence: link to the TMDB watch page, don't deep-link providers.
+function watchHtml(w) {
+  if (!w) return '';
+  const groups = [
+    ['flatrate', 'Stream'],
+    ['rent', 'Rent'],
+    ['buy', 'Buy'],
+  ]
+    .filter(([k]) => w[k] && w[k].length)
+    .map(([k, label]) => `<div class="kind">${label}</div><div class="providers">${providerChips(w[k])}</div>`)
+    .join('');
+  if (!groups) return '';
+  const head = w.link
+    ? `<a class="trailer" style="background:#16161a;border:1px solid #2a2a30;color:var(--fg)" href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Where to watch ↗</a>`
+    : '';
+  return `<div class="watch"><h4>Where to watch</h4>${groups}</div>${head}`;
+}
+
+function trailerHtml(url) {
+  return url
+    ? `<a class="trailer" href="${escapeHtml(url)}" target="_blank" rel="noopener">▶ Watch trailer</a>`
+    : '';
+}
+
 function renderScore(data) {
   const taste = data.tasteMatch
     ? `<div class="taste" style="color:${color(data.verdict)}">${data.tasteMatch.message}</div>`
@@ -61,6 +94,8 @@ function renderScore(data) {
       <div class="rating">${escapeHtml(data.title)}${data.year ? ` · ${data.year}` : ''} · TMDB ${data.tmdbRating.toFixed(1)}/10</div>
     </div>
     ${taste}
+    ${trailerHtml(data.trailerUrl)}
+    ${watchHtml(data.watch)}
     ${legendHtml()}`;
 }
 

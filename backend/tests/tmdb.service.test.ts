@@ -58,6 +58,7 @@ describe('TmdbService.searchTitle', () => {
     const movie = await service.searchTitle('Inception', 2010);
     expect(movie).toEqual({
       tmdbId: 27205,
+      mediaType: 'movie',
       title: 'Inception',
       year: 2010,
       rating: 8.4,
@@ -121,5 +122,63 @@ describe('TmdbService.discover', () => {
     const movies = await service.discover([28], 2);
     expect(movies.map((m) => m.title)).toEqual(['A', 'B']);
     expect(movies[0].genres).toEqual(['Action']);
+  });
+});
+
+describe('TmdbService.watchProviders', () => {
+  it('maps the requested country to flatrate/rent/buy with logo URLs', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        '/movie/27205/watch/providers': {
+          body: {
+            results: {
+              IN: {
+                link: 'https://www.themoviedb.org/movie/27205/watch?locale=IN',
+                flatrate: [{ provider_name: 'Netflix', logo_path: '/nf.jpg' }],
+                rent: [{ provider_name: 'Apple TV', logo_path: null }],
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    const watch = await service.watchProviders(27205, 'movie', 'IN');
+    expect(watch).toEqual({
+      link: 'https://www.themoviedb.org/movie/27205/watch?locale=IN',
+      flatrate: [{ name: 'Netflix', logoUrl: 'https://image.tmdb.org/t/p/w92/nf.jpg' }],
+      rent: [{ name: 'Apple TV', logoUrl: undefined }],
+      buy: [],
+    });
+  });
+
+  it('returns null when the country has no availability', async () => {
+    vi.stubGlobal('fetch', mockFetch({ '/movie/1/watch/providers': { body: { results: { US: {} } } } }));
+    expect(await service.watchProviders(1, 'movie', 'IN')).toBeNull();
+  });
+});
+
+describe('TmdbService.trailerUrl', () => {
+  it('prefers an official YouTube trailer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        '/movie/27205/videos': {
+          body: {
+            results: [
+              { site: 'YouTube', type: 'Teaser', key: 'teaser1' },
+              { site: 'YouTube', type: 'Trailer', key: 'off1', official: true },
+            ],
+          },
+        },
+      }),
+    );
+    expect(await service.trailerUrl(27205, 'movie')).toBe('https://www.youtube.com/watch?v=off1');
+  });
+
+  it('returns undefined when TMDB has no YouTube video', async () => {
+    vi.stubGlobal('fetch', mockFetch({ '/movie/1/videos': { body: { results: [{ site: 'Vimeo', key: 'x' }] } } }));
+    expect(await service.trailerUrl(1, 'movie')).toBeUndefined();
   });
 });

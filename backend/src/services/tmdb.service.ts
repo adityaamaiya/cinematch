@@ -1,9 +1,15 @@
 // TMDB HTTP client. Pure third-party adapter — no DB, no caching (that lives in the logic layer).
 // Auth is the v4 read-access token, sent as a Bearer header on every call.
-import type { ILogger, ITmdbService, TmdbMovie } from '../types/index.js';
+import type { ILogger, ITmdbService, TmdbMovie, WatchInfo, WatchProvider } from '../types/index.js';
 import { AppError } from '../lib/errors.js';
 
 const IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
+const LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
+
+interface TmdbProvider {
+  provider_name: string;
+  logo_path?: string | null;
+}
 
 interface TmdbSearchItem {
   id: number;
@@ -69,10 +75,54 @@ export class TmdbService implements ITmdbService {
     return scored[0].item;
   }
 
+  // JustWatch-via-TMDB availability for one country. Returns null when TMDB has no data.
+  async watchProviders(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    country: string,
+  ): Promise<WatchInfo | null> {
+    const data = await this.request<{
+      results?: Record<
+        string,
+        { link?: string; flatrate?: TmdbProvider[]; rent?: TmdbProvider[]; buy?: TmdbProvider[] }
+      >;
+    }>(`/${mediaType}/${tmdbId}/watch/providers`, {});
+    const region = data.results?.[country];
+    if (!region) return null;
+    const map = (list?: TmdbProvider[]): WatchProvider[] =>
+      (list ?? []).map((p) => ({
+        name: p.provider_name,
+        logoUrl: p.logo_path ? `${LOGO_BASE}${p.logo_path}` : undefined,
+      }));
+    const info: WatchInfo = {
+      link: region.link,
+      flatrate: map(region.flatrate),
+      rent: map(region.rent),
+      buy: map(region.buy),
+    };
+    if (!info.flatrate.length && !info.rent.length && !info.buy.length) return null;
+    return info;
+  }
+
+  // First YouTube trailer (falls back to a teaser) as a watch URL, or undefined.
+  async trailerUrl(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<string | undefined> {
+    const data = await this.request<{
+      results?: { site?: string; type?: string; key?: string; official?: boolean }[];
+    }>(`/${mediaType}/${tmdbId}/videos`, {});
+    const yt = (data.results ?? []).filter((v) => v.site === 'YouTube' && v.key);
+    const best =
+      yt.find((v) => v.type === 'Trailer' && v.official) ??
+      yt.find((v) => v.type === 'Trailer') ??
+      yt.find((v) => v.type === 'Teaser') ??
+      yt[0];
+    return best?.key ? `https://www.youtube.com/watch?v=${best.key}` : undefined;
+  }
+
   private async toMovie(item: TmdbSearchItem): Promise<TmdbMovie> {
     const map = await this.loadGenreMap();
     return {
       tmdbId: item.id,
+      mediaType: item.media_type === 'tv' ? 'tv' : 'movie',
       title: item.title ?? item.name ?? 'Unknown',
       year: this.yearOf(item),
       rating: item.vote_average ?? 0,

@@ -48,6 +48,8 @@ export interface WatchlistMovie {
 /** Normalised result of a TMDB lookup for one title. */
 export interface TmdbMovie {
   tmdbId: number;
+  /** Which TMDB namespace this id lives in — needed for /movie vs /tv sub-endpoints. */
+  mediaType: 'movie' | 'tv';
   title: string;
   year?: number;
   /** TMDB vote_average, 0–10. */
@@ -55,6 +57,25 @@ export interface TmdbMovie {
   /** TMDB genre names, e.g. ["Action", "Thriller"]. */
   genres: string[];
   posterUrl?: string;
+}
+
+/** One streaming/rental service a title is available on (JustWatch data via TMDB). */
+export interface WatchProvider {
+  name: string;
+  logoUrl?: string;
+}
+
+/**
+ * Where a title can be watched in one country (JustWatch via TMDB). Per TMDB's licence we may
+ * show WHO offers it + link to the TMDB watch page, but not deep-link into the provider.
+ */
+export interface WatchInfo {
+  /** TMDB watch page for this title + country. */
+  link?: string;
+  /** Subscription streaming (Netflix, Prime, …). */
+  flatrate: WatchProvider[];
+  rent: WatchProvider[];
+  buy: WatchProvider[];
 }
 
 /**
@@ -79,6 +100,10 @@ export interface ScoreResult {
   /** Personalised taste-match line, or null when there's no profile / no genre overlap. */
   tasteMatch: TasteMatch | null;
   posterUrl?: string;
+  /** YouTube trailer URL, or undefined when TMDB has none. */
+  trailerUrl?: string;
+  /** Where to watch (one country), or null when TMDB has no availability data. */
+  watch: WatchInfo | null;
 }
 
 /** A single recommendation (grid-page fallback). */
@@ -106,6 +131,14 @@ export interface ITmdbService {
   searchTitle(title: string, year?: number): Promise<TmdbMovie | null>;
   /** Discover candidates by TMDB genre id(s), sorted by rating. */
   discover(genreIds: number[], limit: number): Promise<TmdbMovie[]>;
+  /** Where the title streams/rents/buys in one country (JustWatch data). Null if none. */
+  watchProviders(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    country: string,
+  ): Promise<WatchInfo | null>;
+  /** Best YouTube trailer URL for the title, or undefined if TMDB has none. */
+  trailerUrl(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<string | undefined>;
 }
 
 // --- Logger contract ---

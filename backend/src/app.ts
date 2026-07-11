@@ -31,7 +31,7 @@ export function createApp(deps: AppDeps): Express {
   // --- wire dependencies (interface → concrete, one place) ---
   const scorer = new Scorer();
   const lookup = new MovieLookup(deps.tmdb, logger);
-  const scoreController = new ScoreController(new ScoreLogic(lookup, scorer));
+  const scoreController = new ScoreController(new ScoreLogic(lookup, scorer, deps.tmdb));
   const recommendController = new RecommendController(new RecommendLogic(deps.tmdb, scorer));
   const profileController = new ProfileController(new SyncProfileLogic(lookup));
 

@@ -9,6 +9,7 @@ const SYNC_TOKEN = 'secret-token';
 
 const inception: TmdbMovie = {
   tmdbId: 27205,
+  mediaType: 'movie',
   title: 'Inception',
   year: 2010,
   rating: 8.4,
@@ -20,6 +21,13 @@ const inception: TmdbMovie = {
 const tmdb: ITmdbService = {
   searchTitle: vi.fn(async () => inception),
   discover: vi.fn(async () => [inception]),
+  watchProviders: vi.fn(async () => ({
+    link: 'https://tmdb/watch',
+    flatrate: [{ name: 'Netflix', logoUrl: 'https://img/nf.jpg' }],
+    rent: [],
+    buy: [],
+  })),
+  trailerUrl: vi.fn(async () => 'https://www.youtube.com/watch?v=YoHD9XEInc0'),
 };
 
 const app = createApp({ tmdb, syncToken: SYNC_TOKEN });
@@ -38,7 +46,13 @@ describe('GET /score', () => {
     const res = await request(app).get('/score').query({ title: 'Inception' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toMatchObject({ title: 'Inception', verdict: 'Perfection', tmdbRating: 8.4 });
+    expect(res.body.data).toMatchObject({
+      title: 'Inception',
+      verdict: 'Perfection',
+      tmdbRating: 8.4,
+      trailerUrl: 'https://www.youtube.com/watch?v=YoHD9XEInc0',
+      watch: { flatrate: [{ name: 'Netflix' }] },
+    });
   });
 
   it('400s when title is missing', async () => {
