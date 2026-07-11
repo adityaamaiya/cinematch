@@ -114,8 +114,9 @@ function posterHtml(url) {
 }
 
 function titleLine(data) {
+  const type = data.type ? ` · ${escapeHtml(data.type)}` : '';
   const lang = data.language ? ` · ${escapeHtml(String(data.language).toUpperCase())}` : '';
-  return `<div class="rating">${escapeHtml(data.title)}${data.year ? ` · ${data.year}` : ''}${lang}</div>`;
+  return `<div class="rating">${escapeHtml(data.title)}${type}${data.year ? ` · ${data.year}` : ''}${lang}</div>`;
 }
 
 // Highlighted director + lead actor block.

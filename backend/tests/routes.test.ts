@@ -62,6 +62,7 @@ describe('GET /score', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data).toMatchObject({
       title: 'Inception',
+      type: 'Movie',
       verdict: 'Perfection',
       tmdbRating: 8.4,
       trailerUrl: 'https://www.youtube.com/watch?v=YoHD9XEInc0',

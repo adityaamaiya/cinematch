@@ -13,6 +13,7 @@ const SCORE = {
   data: {
     title: 'Inception',
     year: 2010,
+    type: 'Movie',
     verdict: 'Perfection',
     tmdbRating: 8.4,
     voteCount: 36000,

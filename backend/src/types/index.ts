@@ -103,6 +103,8 @@ export interface TasteMatch {
 export interface ScoreResult {
   title: string;
   year?: number;
+  /** Movie vs Show — from TMDB media type. Used for the watchlist entry + shown in the popup. */
+  type: ContentType;
   /** Objective verdict from the TMDB rating band — never altered by the profile. */
   verdict: Verdict;
   tmdbRating: number;

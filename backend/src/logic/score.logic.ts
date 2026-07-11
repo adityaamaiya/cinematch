@@ -93,6 +93,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     return {
       title: movie.title,
       year: movie.year,
+      type: mediaType === 'tv' ? 'Show' : 'Movie',
       verdict: scored.verdict,
       tmdbRating: movie.rating,
       voteCount: movie.voteCount,
