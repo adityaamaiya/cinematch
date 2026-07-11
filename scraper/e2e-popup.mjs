@@ -1,0 +1,74 @@
+// E2E for the extension popup: load extension/popup.html in headless Chrome with the chrome.* APIs
+// stubbed and the backend /score mocked, then assert the gauge + trailer + provider chips render.
+// No extension install needed (that's the flaky part) — we drive popup.js directly.
+// Run: npm run test:popup   (from scraper/)
+import { chromium } from 'playwright';
+import assert from 'node:assert';
+import path from 'node:path';
+
+const popupPath = 'file://' + path.resolve('..', 'extension', 'popup.html');
+
+const SCORE = {
+  success: true,
+  data: {
+    title: 'Inception',
+    year: 2010,
+    verdict: 'Perfection',
+    tmdbRating: 8.4,
+    tasteMatch: { level: 'strong', message: '🔥 Peak you — this is exactly your taste' },
+    posterUrl: 'https://img/inception.jpg',
+    trailerUrl: 'https://www.youtube.com/watch?v=YoHD9XEInc0',
+    watch: {
+      link: 'https://www.themoviedb.org/movie/27205/watch?locale=IN',
+      flatrate: [{ name: 'Netflix', logoUrl: 'https://img/nf.jpg' }],
+      rent: [],
+      buy: [],
+    },
+  },
+};
+
+// Minimal chrome.* so popup.js runs: pretend the content script detected "Inception".
+const CHROME_STUB = `
+  window.chrome = {
+    runtime: {},
+    storage: { local: { get: () => Promise.resolve({}) } },
+    tabs: {
+      query: () => Promise.resolve([{ id: 1 }]),
+      sendMessage: (_id, _msg, cb) => cb({ title: 'Inception' }),
+    },
+  };
+`;
+
+async function main() {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const page = await browser.newPage();
+  await page.addInitScript(CHROME_STUB);
+  await page.route('**/score*', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify(SCORE) }),
+  );
+
+  await page.goto(popupPath);
+
+  // Gauge + verdict from the detected title.
+  await page.waitForSelector('#gauge', { timeout: 5000 });
+  assert.strictEqual((await page.locator('.verdict').innerText()).trim(), 'Perfection', 'verdict renders');
+
+  // Trailer button links to YouTube.
+  const trailerHref = await page.locator('a.trailer').getAttribute('href');
+  assert.ok(trailerHref?.includes('youtube.com/watch'), 'trailer button links to YouTube');
+
+  // Where-to-watch provider chip.
+  const providerText = await page.locator('.prov').first().innerText();
+  assert.ok(providerText.includes('Netflix'), 'streaming provider chip renders');
+
+  // Taste match line.
+  assert.ok((await page.locator('.taste').innerText()).includes('Peak you'), 'taste match renders');
+
+  await browser.close();
+  console.log('✓ popup e2e passed: gauge, verdict, trailer, provider, taste all rendered');
+}
+
+main().catch((err) => {
+  console.error('✗ popup e2e failed:', err.message);
+  process.exit(1);
+});

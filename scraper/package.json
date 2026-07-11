@@ -11,7 +11,8 @@
     "scrape": "tsx src/scrape.ts",
     "postinstall": "playwright install chromium",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/*.test.ts"
+    "test": "node --import tsx --test src/*.test.ts",
+    "test:popup": "node e2e-popup.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
