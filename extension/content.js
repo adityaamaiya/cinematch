@@ -111,9 +111,18 @@ function detectTitle() {
   return title ? { title, year: detectedYear() } : null;
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg && msg.type === 'DETECT_TITLE') {
-    sendResponse(detectTitle());
-  }
-  return true;
-});
+// In the browser: wire the message listener. Guarded so this file can also be imported in Node
+// (tests) where `chrome` doesn't exist.
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg && msg.type === 'DETECT_TITLE') {
+      sendResponse(detectTitle());
+    }
+    return true;
+  });
+}
+
+// Export the pure helpers for unit tests (no-op in the browser, where `module` is undefined).
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { movieFromVideoTitle };
+}

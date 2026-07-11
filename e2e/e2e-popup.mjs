@@ -18,6 +18,11 @@ const SCORE = {
     tasteMatch: { level: 'strong', message: '🔥 Peak you — this is exactly your taste' },
     posterUrl: 'https://img/inception.jpg',
     trailerUrl: 'https://www.youtube.com/watch?v=YoHD9XEInc0',
+    director: 'Christopher Nolan',
+    leadActor: 'Leonardo DiCaprio',
+    awards: 'Won 4 Oscars.',
+    imdbRating: '8.8',
+    released: true,
     watch: {
       link: 'https://www.themoviedb.org/movie/27205/watch?locale=IN',
       flatrate: [{ name: 'Netflix', logoUrl: 'https://img/nf.jpg' }],
@@ -64,8 +69,15 @@ async function main() {
   // Taste match line.
   assert.ok((await page.locator('.taste').innerText()).includes('Peak you'), 'taste match renders');
 
+  // Poster, director/lead actor, awards, and the add-to-watchlist button.
+  assert.ok(await page.locator('img.poster').count(), 'poster renders');
+  const credits = await page.locator('.credits').innerText();
+  assert.ok(credits.includes('Christopher Nolan') && credits.includes('Leonardo DiCaprio'), 'credits render');
+  assert.ok((await page.locator('.awards').innerText()).includes('Oscars'), 'awards render');
+  assert.ok(await page.locator('.wl-add').count(), 'add-to-watchlist button renders');
+
   await browser.close();
-  console.log('✓ popup e2e passed: gauge, verdict, trailer, provider, taste all rendered');
+  console.log('✓ popup e2e passed: gauge, verdict, trailer, provider, taste, poster, credits, awards, watchlist');
 }
 
 main().catch((err) => {
