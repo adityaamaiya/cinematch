@@ -137,8 +137,11 @@ function ratingsLine(data) {
 }
 
 function watchlistBtnHtml(data) {
+  const added = data.onWatchlist;
   return `<button class="wl-add" data-title="${escapeHtml(data.title)}"
-      data-year="${data.year ?? ''}" data-type="${escapeHtml(data.type || 'Movie')}">＋ Add to watchlist</button>
+      data-year="${data.year ?? ''}" data-type="${escapeHtml(data.type || 'Movie')}"${added ? ' disabled' : ''}>${
+        added ? '✓ On your watchlist' : '＋ Add to watchlist'
+      }</button>
     <button class="ghost" id="score-mylist">📋 My watchlist</button>`;
 }
 
@@ -252,12 +255,20 @@ async function renderWatchlist(back) {
     const body = await res.json();
     if (!body.success) throw new Error(body.error?.message || 'Request failed');
     const items = body.data;
+    const chip = (r) =>
+      r.released === false
+        ? `<span class="chip chip-upcoming">Upcoming</span>`
+        : `<span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${r.verdict}</span>`;
     const list = items.length
       ? items
           .map(
-            (r) => `<div class="rec" data-title="${escapeHtml(r.title)}" data-year="${r.year ?? ''}">
-              <span role="button" tabindex="0" class="rec-open" style="flex:1">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
-              <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${r.verdict}</span>
+            (r) => `<div class="rec wl-item" data-title="${escapeHtml(r.title)}" data-year="${r.year ?? ''}">
+              ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
+              <span role="button" tabindex="0" class="rec-open wl-meta">
+                <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
+                ${r.director ? `<span class="wl-dir">${escapeHtml(r.director)}</span>` : ''}
+              </span>
+              ${chip(r)}
               <button class="wl-remove" title="Remove" aria-label="Remove">✕</button>
             </div>`,
           )

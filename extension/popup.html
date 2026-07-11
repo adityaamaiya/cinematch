@@ -53,7 +53,7 @@
       h1 { font-size: 18px; margin: 0; font-weight: 600; }
       .icon-btn {
         background: var(--surface); border: 1px solid var(--line); color: var(--fg);
-        width: 30px; height: 30px; border-radius: 8px; font-size: 15px; cursor: pointer;
+        width: 30px; height: 30px; padding: 0; border-radius: 8px; font-size: 15px; cursor: pointer;
         display: grid; place-items: center; line-height: 1;
       }
       .icon-btn:hover { background: var(--surface-2); }
@@ -111,6 +111,13 @@
       .rec { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 8px; margin: 0 -8px; border-top: 1px solid var(--line); border-radius: 8px; cursor: pointer; transition: background .12s ease; }
       .rec:hover, .rec:focus-visible { background: var(--surface-2); outline: none; }
       .chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+      .chip-upcoming { background: var(--surface-2); color: var(--muted); }
+      /* Watchlist rows: poster thumb + title/director + chip. */
+      .wl-thumb { width: 34px; height: 51px; border-radius: 5px; object-fit: cover; flex: 0 0 auto; }
+      .wl-thumb-empty { background: var(--surface-2); }
+      .wl-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+      .wl-title { font-size: 13px; }
+      .wl-dir { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .trailer {
         display: flex; align-items: center; justify-content: center; gap: 7px;
         margin: 14px 0 4px; padding: 9px 12px; width: 100%;
