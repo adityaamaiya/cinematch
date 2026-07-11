@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAffinities, type RatedSignals } from '../src/logic/syncProfile.logic.js';
+import { buildAffinities, rankLanguages, type RatedSignals } from '../src/logic/syncProfile.logic.js';
 
 // weight: Skip 1 … Perfection 4. buildAffinities = per-key mean weight − overall mean, with
 // min-samples guards (genre ≥3, person ≥2).
@@ -28,5 +28,24 @@ describe('buildAffinities', () => {
     expect(genreAffinity.Comedy).toBeCloseTo(-0.8); // 3 samples ≥ 3 → kept
     expect(genreAffinity['Science Fiction']).toBeUndefined(); // 2 samples < 3 → dropped
     expect(actorAffinity).toEqual({}); // every actor appears once
+  });
+});
+
+describe('rankLanguages', () => {
+  const film = (language?: string): RatedSignals => ({ weight: 4, genres: [], language });
+
+  it('orders languages by count, dropping those below the min (3)', () => {
+    const films = [
+      ...Array(5).fill(0).map(() => film('hi')),
+      ...Array(4).fill(0).map(() => film('en')),
+      ...Array(3).fill(0).map(() => film('ta')),
+      film('ko'), // only 1 → dropped
+      film(undefined), // no language → ignored
+    ];
+    expect(rankLanguages(films)).toEqual(['hi', 'en', 'ta']);
+  });
+
+  it('returns [] when nothing clears the min count', () => {
+    expect(rankLanguages([film('hi'), film('en')])).toEqual([]);
   });
 });

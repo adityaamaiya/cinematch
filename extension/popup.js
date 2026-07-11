@@ -114,7 +114,8 @@ function posterHtml(url) {
 }
 
 function titleLine(data) {
-  return `<div class="rating">${escapeHtml(data.title)}${data.year ? ` · ${data.year}` : ''}</div>`;
+  const lang = data.language ? ` · ${escapeHtml(String(data.language).toUpperCase())}` : '';
+  return `<div class="rating">${escapeHtml(data.title)}${data.year ? ` · ${data.year}` : ''}${lang}</div>`;
 }
 
 // Highlighted director + lead actor block.

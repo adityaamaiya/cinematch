@@ -57,6 +57,8 @@ export interface TmdbMovie {
   rating: number;
   /** TMDB genre names, e.g. ["Action", "Thriller"]. */
   genres: string[];
+  /** TMDB original_language (ISO 639-1, e.g. "en", "hi", "ta"). Used to disambiguate same-name titles. */
+  language?: string;
   posterUrl?: string;
   /** Release date (YYYY-MM-DD) if TMDB has one. */
   releaseDate?: string;
@@ -121,6 +123,8 @@ export interface ScoreResult {
   released: boolean;
   /** Release date (YYYY-MM-DD) if known. */
   releaseDate?: string;
+  /** Original language (ISO 639-1) of the matched title — shown so same-name picks are transparent. */
+  language?: string;
   /** True when this title is already on the user's watchlist. */
   onWatchlist: boolean;
 }
@@ -170,8 +174,12 @@ export interface Affinities {
 // --- Service contracts (third-party clients only) ---
 
 export interface ITmdbService {
-  /** Search by title, return the best-matching movie/show enriched with rating + genres. */
-  searchTitle(title: string, year?: number): Promise<TmdbMovie | null>;
+  /**
+   * Search by title, return the best-matching movie/show enriched with rating + genres.
+   * `preferredLanguages` (ISO 639-1, priority order) breaks ties between same-name titles —
+   * used so e.g. a Bollywood viewer gets the Hindi cut over a more-popular English one.
+   */
+  searchTitle(title: string, year?: number, preferredLanguages?: string[]): Promise<TmdbMovie | null>;
   /** Discover candidates by TMDB genre id(s), sorted by rating. */
   discover(genreIds: number[], limit: number): Promise<TmdbMovie[]>;
   /** Where the title streams/rents/buys in one country (JustWatch data). Null if none. */

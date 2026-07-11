@@ -43,7 +43,14 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
   ) {}
 
   async execute(input: ScoreInput): Promise<ScoreResult> {
-    const movie = await this.lookup.execute({ title: input.title, year: input.year });
+    // Language priority disambiguates same-name titles (e.g. the Hindi cut over a more-popular
+    // English one) toward what this user actually watches. Absent profile → [] → popularity as before.
+    const preferredLanguages = await Profile.findLanguagePriority(input.userKey).catch(() => []);
+    const movie = await this.lookup.execute({
+      title: input.title,
+      year: input.year,
+      preferredLanguages,
+    });
     if (!movie) throw AppError.notFound(`No TMDB match for "${input.title}"`, 'MOVIE_NOT_FOUND');
 
     // Verdict/taste are core; everything else is a cached extra that must never break a score.
@@ -98,6 +105,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       imdbRating: omdb?.imdbRating,
       released,
       releaseDate: movie.releaseDate,
+      language: movie.language,
       onWatchlist,
     };
   }

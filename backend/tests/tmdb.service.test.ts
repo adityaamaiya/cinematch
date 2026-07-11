@@ -108,6 +108,46 @@ describe('TmdbService.searchTitle', () => {
     expect(movie?.tmdbId).toBe(2);
   });
 
+  it('prefers a preferred-language title over a more popular other-language one (same name)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        ...GENRE_ROUTES,
+        '/search/multi': {
+          body: {
+            results: [
+              { id: 1, media_type: 'movie', title: 'Drishyam', popularity: 999, original_language: 'en', genre_ids: [28] },
+              { id: 2, media_type: 'movie', title: 'Drishyam', popularity: 5, original_language: 'hi', genre_ids: [28] },
+            ],
+          },
+        },
+      }),
+    );
+    const movie = await service.searchTitle('Drishyam', undefined, ['hi', 'en']);
+    expect(movie?.tmdbId).toBe(2);
+    expect(movie?.language).toBe('hi');
+  });
+
+  it('a matching year still beats language preference', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        ...GENRE_ROUTES,
+        '/search/multi': {
+          body: {
+            results: [
+              { id: 1, media_type: 'movie', title: 'Drishyam', release_date: '2013-12-13', original_language: 'ta', popularity: 5, genre_ids: [28] },
+              { id: 2, media_type: 'movie', title: 'Drishyam', release_date: '2015-07-31', original_language: 'hi', popularity: 5, genre_ids: [28] },
+            ],
+          },
+        },
+      }),
+    );
+    // 'hi' is preferred but the page year is 2013 → the year match (+30) wins over language (+18).
+    const movie = await service.searchTitle('Drishyam', 2013, ['hi']);
+    expect(movie?.tmdbId).toBe(1);
+  });
+
   it('returns null when there are no movie/tv results', async () => {
     vi.stubGlobal(
       'fetch',

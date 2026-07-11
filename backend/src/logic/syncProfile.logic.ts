@@ -31,6 +31,20 @@ export interface RatedSignals {
   genres: string[];
   director?: string;
   leadActor?: string;
+  language?: string;
+}
+
+// Languages the user watches enough to matter (≥ this many rated films), most-watched first.
+// Used to break same-name-title ties in TMDB search. Noise guard drops one-off languages.
+const LANGUAGE_MIN_COUNT = 3;
+
+export function rankLanguages(films: RatedSignals[]): string[] {
+  const counts: Record<string, number> = {};
+  for (const f of films) if (f.language) counts[f.language] = (counts[f.language] ?? 0) + 1;
+  return Object.entries(counts)
+    .filter(([, n]) => n >= LANGUAGE_MIN_COUNT)
+    .sort((a, b) => b[1] - a[1])
+    .map(([lang]) => lang);
 }
 
 // Affinity = per-key mean verdict-weight minus the user's overall mean (relative preference, to
@@ -84,6 +98,7 @@ export interface SyncProfileResult {
   genreCount: number;
   directorCount: number;
   actorCount: number;
+  languageCount: number;
 }
 
 export class SyncProfileLogic implements ILogic<SyncProfileInput, SyncProfileResult> {
@@ -93,10 +108,13 @@ export class SyncProfileLogic implements ILogic<SyncProfileInput, SyncProfileRes
   ) {}
 
   async execute(input: SyncProfileInput): Promise<SyncProfileResult> {
-    const affinities = await this.computeAffinities(input.ratedMovies);
+    const films = await this.resolveFilms(input.ratedMovies);
+    const affinities = buildAffinities(films);
+    const languagePriority = rankLanguages(films);
     await Profile.upsertProfile(input.userKey, {
       ratedMovies: input.ratedMovies,
       watchlist: input.watchlist,
+      languagePriority,
       ...affinities,
     });
     return {
@@ -105,13 +123,16 @@ export class SyncProfileLogic implements ILogic<SyncProfileInput, SyncProfileRes
       genreCount: Object.keys(affinities.genreAffinity).length,
       directorCount: Object.keys(affinities.directorAffinity).length,
       actorCount: Object.keys(affinities.actorAffinity).length,
+      languageCount: languagePriority.length,
     };
   }
 
-  // Resolve each rated film to genres + director + lead actor, then reduce to affinity maps.
+  // Resolve each rated film to genres + director + lead actor + language.
   // ponytail: sequential TMDB lookups + credits (both cached) — fine for a one-off sync; parallelise
   // if 500+ syncs ever get slow. This is why we re-seed from the server, not through nginx (504s).
-  private async computeAffinities(rated: RatedMovie[]): Promise<Affinities> {
+  // No preferredLanguages passed to the lookup here: we're building that list, and rated films carry
+  // a year that already disambiguates them.
+  private async resolveFilms(rated: RatedMovie[]): Promise<RatedSignals[]> {
     const films: RatedSignals[] = [];
     for (const m of rated) {
       const movie = await this.lookup.execute({ title: m.title, year: m.year });
@@ -124,8 +145,9 @@ export class SyncProfileLogic implements ILogic<SyncProfileInput, SyncProfileRes
         genres: movie.genres,
         director: credits.director,
         leadActor: credits.leadActor,
+        language: movie.language,
       });
     }
-    return buildAffinities(films);
+    return films;
   }
 }

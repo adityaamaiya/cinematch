@@ -24,6 +24,8 @@ export interface ProfileAttrs {
   directorAffinity: PersonAffinity;
   /** lead-actor name → signed affinity. */
   actorAffinity: PersonAffinity;
+  /** Languages (ISO 639-1) the user watches, most-watched first — breaks same-name-title ties. */
+  languagePriority: string[];
 }
 
 interface ProfileDoc extends ProfileAttrs, mongoose.Document {}
@@ -33,12 +35,15 @@ interface ProfileModel extends Model<ProfileDoc> {
   /** Insert or replace the profile + derived affinity for a user, return the saved doc. */
   upsertProfile(
     userKey: string,
-    data: { ratedMovies: RatedMovie[]; watchlist: WatchlistMovie[] } & Affinities,
+    data: { ratedMovies: RatedMovie[]; watchlist: WatchlistMovie[]; languagePriority: string[] } &
+      Affinities,
   ): Promise<HydratedDocument<ProfileDoc>>;
   /** Return the genre-affinity map for a user, or empty object if no profile exists. */
   findAffinity(userKey: string): Promise<GenreAffinity>;
   /** Return all three affinity maps for a user; empty maps if no profile exists. */
   findAffinities(userKey: string): Promise<Affinities>;
+  /** Return the user's most-watched-first language list, or [] if no profile. */
+  findLanguagePriority(userKey: string): Promise<string[]>;
   /** Add a title to the watchlist (idempotent by title+year). Creates the profile if absent. */
   addToWatchlist(userKey: string, item: WatchlistMovie): Promise<void>;
   /** Remove a title from the watchlist by title+year. */
@@ -81,6 +86,7 @@ const profileSchema = new Schema<ProfileDoc, ProfileModel>(
     genreAffinity: { type: Schema.Types.Mixed, default: {} },
     directorAffinity: { type: Schema.Types.Mixed, default: {} },
     actorAffinity: { type: Schema.Types.Mixed, default: {} },
+    languagePriority: { type: [String], default: [] },
   },
   { timestamps: true },
 );
@@ -111,6 +117,14 @@ profileSchema.static('findAffinities', async function findAffinities(this: Profi
     actorAffinity: (doc?.actorAffinity as PersonAffinity | undefined) ?? {},
   };
 });
+
+profileSchema.static(
+  'findLanguagePriority',
+  async function findLanguagePriority(this: ProfileModel, userKey) {
+    const doc = await this.findOne({ userKey }, { languagePriority: 1 }).lean().exec();
+    return (doc?.languagePriority as string[] | undefined) ?? [];
+  },
+);
 
 profileSchema.static(
   'addToWatchlist',

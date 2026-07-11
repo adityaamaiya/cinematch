@@ -49,6 +49,7 @@ beforeEach(() => {
     directorAffinity: {},
     actorAffinity: {},
   });
+  vi.spyOn(Profile, 'findLanguagePriority').mockResolvedValue([]);
   vi.spyOn(Profile, 'upsertProfile').mockResolvedValue({} as never);
   vi.spyOn(Profile, 'isOnWatchlist').mockResolvedValue(false);
 });

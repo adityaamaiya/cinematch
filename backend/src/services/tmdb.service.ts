@@ -29,6 +29,7 @@ interface TmdbSearchItem {
   popularity?: number;
   genre_ids?: number[];
   poster_path?: string | null;
+  original_language?: string;
 }
 
 export class TmdbService implements ITmdbService {
@@ -40,7 +41,11 @@ export class TmdbService implements ITmdbService {
     private readonly logger: ILogger,
   ) {}
 
-  async searchTitle(title: string, year?: number): Promise<TmdbMovie | null> {
+  async searchTitle(
+    title: string,
+    year?: number,
+    preferredLanguages: string[] = [],
+  ): Promise<TmdbMovie | null> {
     const data = await this.request<{ results: TmdbSearchItem[] }>('/search/multi', {
       query: title,
       include_adult: 'false',
@@ -48,7 +53,7 @@ export class TmdbService implements ITmdbService {
     const candidates = (data.results ?? []).filter(
       (r) => r.media_type === 'movie' || r.media_type === 'tv',
     );
-    const best = this.pickBest(candidates, title, year);
+    const best = this.pickBest(candidates, title, year, preferredLanguages);
     return best ? this.toMovie(best) : null;
   }
 
@@ -63,8 +68,17 @@ export class TmdbService implements ITmdbService {
     return Promise.all(items.map((i) => this.toMovie({ ...i, media_type: 'movie' })));
   }
 
-  // Prefer an exact title match (then matching year, then popularity).
-  private pickBest(items: TmdbSearchItem[], title: string, year?: number): TmdbSearchItem | null {
+  // Prefer an exact title match (then matching year, then preferred language, then popularity).
+  // Language breaks ties among same-name candidates. Bonus 24→6 by rank: the min (+6) beats
+  // popularity (≤5) so ANY preferred language outranks a non-preferred blockbuster, and the rank
+  // gap (6) exceeds popularity too so rank-0 beats a more-popular rank-1. Max (+24) stays below a
+  // year match (+30) — an on-page year always wins — and exact title (+100) is untouched.
+  private pickBest(
+    items: TmdbSearchItem[],
+    title: string,
+    year?: number,
+    preferredLanguages: string[] = [],
+  ): TmdbSearchItem | null {
     if (items.length === 0) return null;
     const wanted = title.trim().toLowerCase();
     const scored = items
@@ -75,6 +89,8 @@ export class TmdbService implements ITmdbService {
         if (name === wanted) score += 100;
         else if (name.includes(wanted) || wanted.includes(name)) score += 40;
         if (year && itemYear === year) score += 30;
+        const langRank = preferredLanguages.indexOf(item.original_language ?? '');
+        if (langRank >= 0) score += Math.max(24 - langRank * 6, 6);
         score += Math.min(item.popularity ?? 0, 50) / 10;
         return { item, score };
       })
@@ -147,6 +163,7 @@ export class TmdbService implements ITmdbService {
       year: this.yearOf(item),
       rating: item.vote_average ?? 0,
       genres: (item.genre_ids ?? []).map((id) => map.get(id)).filter((g): g is string => !!g),
+      language: item.original_language,
       posterUrl: item.poster_path ? `${IMAGE_BASE}${item.poster_path}` : undefined,
       releaseDate,
       released: !!releaseDate && releaseDate <= today,

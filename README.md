@@ -64,6 +64,11 @@ present (director is the strongest personal signal) — into `strong` / `mild` /
 Cutoffs are tuned to the profile's own spread (see `scripts/calibrate-affinity.ts`). No profile → no
 taste line, verdict only.
 
+**Same-name titles.** When several films share a title, an on-page year decides. With no year, the
+tie is broken by **language priority** — the languages you actually watch most, learned from your
+ratings at sync (e.g. a Bollywood/South viewer gets the Hindi/Tamil cut over a more-popular English
+one). Falls back to TMDB popularity when nothing else distinguishes them.
+
 ---
 
 ## Run the backend
