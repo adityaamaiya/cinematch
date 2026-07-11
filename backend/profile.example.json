@@ -1,0 +1,16 @@
+{
+  "ratedMovies": [
+    { "title": "Inception", "type": "Movie", "year": 2010, "verdict": "Perfection" },
+    { "title": "The Dark Knight", "type": "Movie", "year": 2008, "verdict": "Perfection" },
+    { "title": "Parasite", "type": "Movie", "year": 2019, "verdict": "Perfection" },
+    { "title": "Interstellar", "type": "Movie", "year": 2014, "verdict": "Go For It" },
+    { "title": "The Prestige", "type": "Movie", "year": 2006, "verdict": "Go For It" },
+    { "title": "Se7en", "type": "Movie", "year": 1995, "verdict": "Go For It" },
+    { "title": "Fast & Furious 9", "type": "Movie", "year": 2021, "verdict": "Timepass" },
+    { "title": "Morbius", "type": "Movie", "year": 2022, "verdict": "Skip" }
+  ],
+  "watchlist": [
+    { "title": "Dune: Part Two", "type": "Movie", "collectionId": "seed" },
+    { "title": "Oppenheimer", "type": "Movie", "collectionId": "seed" }
+  ]
+}
