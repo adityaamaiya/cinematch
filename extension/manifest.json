@@ -13,7 +13,7 @@
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": [
     "http://localhost:3000/*",
-    "https://api.adityadevhub.in/*"
+    "https://cinematch.adityadevhub.in/*"
   ],
   "content_scripts": [
     {

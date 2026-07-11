@@ -1,7 +1,7 @@
 # Deploy Guide — CineMatch backend
 
 Target: **MongoDB Atlas (free M0)** + **AWS EC2 (free t2/t3.micro)** + **Nginx + Let's Encrypt HTTPS**
-at `https://api.adityadevhub.in`, with **auto-deploy on merge to `main`** via GitHub Actions.
+at `https://cinematch.adityadevhub.in`, with **auto-deploy on merge to `main`** via GitHub Actions.
 
 Do the steps in order. Anything in `<angle brackets>` is a value you substitute.
 
@@ -72,22 +72,22 @@ curl localhost:3000/health   # {"success":true,...}
 
 ### 3.1 Point the subdomain at EC2
 In BigRock DNS management for `adityadevhub.in`, add an **A record**:
-`api` → `<EC2_PUBLIC_IP>` (TTL default). Wait for it to resolve: `dig +short api.adityadevhub.in`.
+`cinematch` → `<EC2_PUBLIC_IP>` (TTL default). Wait for it to resolve: `dig +short cinematch.adityadevhub.in`.
 
 ### 3.2 Nginx reverse proxy
 ```bash
 sudo cp ~/cinematch/deploy/nginx.conf /etc/nginx/conf.d/cinematch.conf
 sudo nginx -t && sudo systemctl enable --now nginx
 ```
-Check `http://api.adityadevhub.in/health` returns JSON.
+Check `http://cinematch.adityadevhub.in/health` returns JSON.
 
 ### 3.3 Let's Encrypt TLS (certbot)
 ```bash
 sudo yum install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d api.adityadevhub.in    # follow prompts; choose to redirect HTTP→HTTPS
+sudo certbot --nginx -d cinematch.adityadevhub.in    # follow prompts; choose to redirect HTTP→HTTPS
 ```
 certbot edits the Nginx config to add the 443 block + auto-renew timer. Verify:
-`curl https://api.adityadevhub.in/health`.
+`curl https://cinematch.adityadevhub.in/health`.
 
 ---
 
@@ -96,7 +96,7 @@ certbot edits the Nginx config to add the 443 block + auto-renew timer. Verify:
 Workflow: `.github/workflows/deploy.yml` (runs tests on every push/PR; on push to `main`, SSHes in and redeploys).
 
 Add repo **Secrets** (Settings → Secrets and variables → Actions):
-- `EC2_HOST` — EC2 public IP (or `api.adityadevhub.in`).
+- `EC2_HOST` — EC2 public IP (or `cinematch.adityadevhub.in`).
 - `EC2_USER` — `ec2-user`.
 - `EC2_SSH_KEY` — contents of a private key whose public key is in `~/.ssh/authorized_keys` on EC2.
   (Generate a dedicated deploy key: `ssh-keygen -t ed25519 -f deploy_key`, append `deploy_key.pub` to the server's `authorized_keys`, paste `deploy_key` here.)
@@ -106,13 +106,13 @@ After this, merging to `main` runs tests → SSH → `git pull && npm ci && npm 
 ---
 
 ## 5. Point the extension at prod
-In `extension/popup.js` set `DEFAULT_BACKEND` to `https://api.adityadevhub.in` (host permission is already
+In `extension/popup.js` set `DEFAULT_BACKEND` to `https://cinematch.adityadevhub.in` (host permission is already
 in `manifest.json`), reload the unpacked extension.
 
 ## 6. Seed / sync your profile
 - No Moctale: `cd backend && npm run seed` (uses `profile.example.json`), or seed your own JSON.
 - With Moctale: run the scraper locally (`cd scraper && npx playwright install chromium && npm run scrape`),
-  with `BACKEND_URL=https://api.adityadevhub.in` and the matching `SYNC_TOKEN` in `scraper/.env`.
+  with `BACKEND_URL=https://cinematch.adityadevhub.in` and the matching `SYNC_TOKEN` in `scraper/.env`.
 
 ## Security checklist
 - [ ] Atlas Network Access restricted to the EC2 IP (not `0.0.0.0/0`).

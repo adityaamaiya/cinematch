@@ -135,7 +135,7 @@ All responses use `{ success, data?, error? }`.
 ## Deploy
 
 Full walk-through in **[docs/DEPLOY.md](docs/DEPLOY.md)** — MongoDB Atlas + AWS EC2 free tier + Nginx +
-Let's Encrypt HTTPS at `https://api.adityadevhub.in`, with GitHub Actions auto-deploy on merge to `main`.
+Let's Encrypt HTTPS at `https://cinematch.adityadevhub.in`, with GitHub Actions auto-deploy on merge to `main`.
 After deploying, set `DEFAULT_BACKEND` in `extension/popup.js` to your API URL.
 
 ## Fork it

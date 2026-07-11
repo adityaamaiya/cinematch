@@ -1,7 +1,7 @@
 // Popup controller: detect the page's title → score it (gauge), else offer manual search +
 // mood-based recommendations. Talks to the backend directly (host_permissions covers it).
 
-const DEFAULT_BACKEND = 'http://localhost:3000';
+const DEFAULT_BACKEND = 'https://cinematch.adityadevhub.in';
 const MOODS = ['chill', 'intense', 'feelgood', 'mindbender', 'classic'];
 const VERDICT_VAR = {
   Skip: '--skip',
