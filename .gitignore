@@ -1,0 +1,18 @@
+# deps
+node_modules/
+
+# build output
+dist/
+build/
+
+# env — real secrets, never commit
+.env
+*.env
+!.env.example
+
+# scraper persistent browser session (contains logged-in cookies)
+scraper/.moctale-session/
+
+# logs / misc
+*.log
+.DS_Store
