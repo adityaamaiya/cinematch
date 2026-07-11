@@ -2,7 +2,8 @@
 
 > A Chrome extension that answers one question on any movie/show page: **should you watch it?**
 > It shows a verdict on a 4-point scale — **Skip · Timepass · Go For It · Perfection** — from the
-> TMDB rating, plus a personalised "for you" line based on your own taste.
+> TMDB rating, plus a personalised "for you" line based on your own taste, a **YouTube trailer** to
+> judge for yourself, and **where to watch** it (streaming/rent/buy).
 
 The verdict (the meter) is **objective** — it comes straight from the TMDB rating band and is never
 altered. Personalisation is a **separate** attention-grabbing line ("🔥 Peak you — exactly your
@@ -126,7 +127,7 @@ If selectors ever return 0 rows: `npm run scrape -- --dump` saves the live HTML 
 | Method | Route | Notes |
 |---|---|---|
 | GET | `/health` | Liveness. |
-| GET | `/score?title=&year=` | Verdict + taste match for a title. |
+| GET | `/score?title=&year=` | Verdict + taste match + YouTube `trailerUrl` + `watch` (JustWatch via TMDB, IN) for a title. |
 | GET | `/recommend?mood=&genre=&limit=` | Scored picks (grid/browse fallback). |
 | POST | `/sync-profile` | Load ratings + watchlist. **Bearer `SYNC_TOKEN` required.** |
 

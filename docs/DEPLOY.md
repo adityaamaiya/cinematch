@@ -27,10 +27,16 @@ Do the steps in order. Anything in `<angle brackets>` is a value you substitute.
 2. Name `cinematch`. AMI: **Amazon Linux 2023**. Type: **t2.micro** or **t3.micro** (free-tier eligible).
 3. **Key pair** → create one (`cinematch-key`), download the `.pem`. Keep it safe (`chmod 400`).
 4. **Network settings** → security group inbound rules (least privilege):
-   - SSH `22` — source **My IP** only.
+   - SSH `22` — source **My IP** for manual deploys. **If you use the GitHub Actions auto-deploy
+     (step 4), open it to `0.0.0.0/0`** — runner IPs rotate and can't be whitelisted. Safe because
+     auth is key-only (password auth is off on AL2023); optionally add `fail2ban` to mute scanners:
+     `sudo dnf install -y fail2ban && sudo systemctl enable --now fail2ban`.
    - HTTP `80` — `0.0.0.0/0` (certbot + redirect).
    - HTTPS `443` — `0.0.0.0/0`.
    - Do **not** open `3000` — Nginx fronts it; Node only listens on localhost.
+
+   The launch wizard sometimes rejects rules with a false "duplicate" error — launch with SSH only,
+   then add 80/443 from **Security Groups → Edit inbound rules** afterward.
 5. Launch. Note the **public IPv4** and, if you want it stable across reboots, allocate an **Elastic IP** and associate it.
 
 ### 2.2 Lock Atlas to this IP
