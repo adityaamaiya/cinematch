@@ -46,7 +46,7 @@ sudo yum install -y nodejs git nginx
 sudo npm install -g pm2
 
 # clone into ~/cinematch — for a private repo add a deploy key first
-git clone https://github.com/adityaamaiya/moctale-meter.git ~/cinematch
+git clone https://github.com/adityaamaiya/cinematch.git ~/cinematch
 ```
 
 ### 2.4 Build + configure the backend
