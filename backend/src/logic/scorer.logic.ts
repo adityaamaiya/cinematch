@@ -7,7 +7,11 @@ import { mean } from '../lib/utils.js';
 const BANDS: readonly Verdict[] = ['Skip', 'Timepass', 'Go For It', 'Perfection'];
 
 const STRONG = 0.5;
-const MILD = 0.15; // below this (in abs) the signal is neutral → no message
+// Below this (in abs) the signal is neutral → no message. Calibrated to a cinephile spread where
+// most per-genre deltas sit in ±0.2 (rating almost everything highly compresses the range).
+// ponytail: fixed cutoff; per-user z-scoring on the affinity spread is the upgrade if forkers'
+// distributions differ a lot — pairs with the v2 director/actor-affinity work.
+const MILD = 0.12;
 
 const MESSAGES: Record<TasteMatchLevel, string> = {
   strong: '🔥 Peak you — this is exactly your taste',
