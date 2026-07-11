@@ -68,7 +68,10 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     ]);
 
     // Unreleased titles have no real rating yet → no verdict/taste; the popup shows the date instead.
-    const scored = movie.released
+    // Only an explicit false counts as unreleased (entries cached before `released` existed are
+    // undefined → treat as released, since they carry a real rating).
+    const released = movie.released !== false;
+    const scored = released
       ? await this.scorer.execute({ movie, affinity })
       : { verdict: 'Skip' as const, tasteMatch: null };
 
@@ -85,7 +88,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       leadActor: credits.leadActor,
       awards: omdb?.awards,
       imdbRating: omdb?.imdbRating,
-      released: movie.released,
+      released,
       releaseDate: movie.releaseDate,
     };
   }
