@@ -57,17 +57,27 @@ export interface TmdbMovie {
   posterUrl?: string;
 }
 
+/**
+ * How well a title matches the user's taste. This is SEPARATE from the verdict — the meter
+ * stays objective (TMDB), this is the punchy "for you" line shown alongside it.
+ */
+export type TasteMatchLevel = 'strong' | 'mild' | 'mismatch';
+
+export interface TasteMatch {
+  level: TasteMatchLevel;
+  /** Attention-grabbing copy to render, e.g. "🔥 Peak you — exactly your taste". */
+  message: string;
+}
+
 /** What GET /score returns. */
 export interface ScoreResult {
   title: string;
   year?: number;
+  /** Objective verdict from the TMDB rating band — never altered by the profile. */
   verdict: Verdict;
-  /** Verdict before personalisation, for transparency/debugging. */
-  baseVerdict: Verdict;
-  /** TMDB rating that drove the base verdict. */
   tmdbRating: number;
-  /** Whether a taste profile influenced the result. */
-  personalised: boolean;
+  /** Personalised taste-match line, or null when there's no profile / no genre overlap. */
+  tasteMatch: TasteMatch | null;
   posterUrl?: string;
 }
 

@@ -1,19 +1,45 @@
-// Composition root: build deps, mount routes + middleware. Separate from index.ts so tests
-// import the app without a DB connection or bound port. Services get instantiated here.
+// Composition root: build deps, wire logic → controllers → routers, mount middleware. Separate
+// from index.ts so tests inject a mock TMDB client and skip the DB connection + bound port.
 import express, { type Express } from 'express';
+import type { ILogger, ITmdbService } from './types/index.js';
 import { Logger } from './lib/logger.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 import { healthRouter } from './routes/health.router.js';
+import { scoreRouter } from './routes/score.router.js';
+import { recommendRouter } from './routes/recommend.router.js';
+import { profileRouter } from './routes/profile.router.js';
+import { ScoreController } from './controllers/score.controller.js';
+import { RecommendController } from './controllers/recommend.controller.js';
+import { ProfileController } from './controllers/profile.controller.js';
+import { Scorer } from './logic/scorer.logic.js';
+import { MovieLookup } from './logic/movieLookup.js';
+import { ScoreLogic } from './logic/score.logic.js';
+import { RecommendLogic } from './logic/recommend.logic.js';
+import { SyncProfileLogic } from './logic/syncProfile.logic.js';
 
-export function createApp(): Express {
+export interface AppDeps {
+  tmdb: ITmdbService;
+  syncToken: string;
+  logger?: ILogger;
+}
+
+export function createApp(deps: AppDeps): Express {
+  const logger = deps.logger ?? new Logger('http');
   const app = express();
-  const logger = new Logger('http');
-
   app.use(express.json({ limit: '2mb' })); // profile syncs can be largish
+
+  // --- wire dependencies (interface → concrete, one place) ---
+  const scorer = new Scorer();
+  const lookup = new MovieLookup(deps.tmdb, logger);
+  const scoreController = new ScoreController(new ScoreLogic(lookup, scorer));
+  const recommendController = new RecommendController(new RecommendLogic(deps.tmdb, scorer));
+  const profileController = new ProfileController(new SyncProfileLogic(lookup));
 
   // --- routes ---
   app.use(healthRouter());
-  // Phase 3 mounts: scoreRouter, recommendRouter, profileRouter.
+  app.use(scoreRouter(scoreController.score));
+  app.use(recommendRouter(recommendController.recommend));
+  app.use(profileRouter(profileController.syncProfile, deps.syncToken));
 
   // --- fallthrough ---
   app.use(notFoundMiddleware);
