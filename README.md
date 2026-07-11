@@ -99,8 +99,10 @@ Real `.env` files are gitignored; commit only `.env.example`.
 
 1. Open `chrome://extensions` and turn on **Developer mode** (top-right).
 2. Click **Load unpacked** and select the `extension/` folder.
-3. Pin the **CineMatch** icon. Click it on any movie/show page (Netflix, Prime, Hotstar, YouTube,
-   Google, Wikipedia) — or click it anywhere and type a title.
+3. Pin the **CineMatch** icon. Click it on any movie/show page. Netflix, Prime, Hotstar, YouTube,
+   Google, and Wikipedia have tuned detectors; **any other site** (IMDb, Letterboxd, Rotten Tomatoes,
+   …) is detected on demand from its `og:title` / `<h1>` / URL. Wrong guess? Hit **"Not this title?"**
+   in the header to search manually — your pick is remembered for that tab.
 4. Point it at your backend: `extension/popup.js` → `DEFAULT_BACKEND` (defaults to a hosted URL; set
    your own after deploying).
 

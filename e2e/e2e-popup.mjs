@@ -15,6 +15,7 @@ const SCORE = {
     year: 2010,
     verdict: 'Perfection',
     tmdbRating: 8.4,
+    voteCount: 36000,
     tasteMatch: { level: 'strong', message: '🔥 Peak you — this is exactly your taste' },
     posterUrl: 'https://img/inception.jpg',
     trailerUrl: 'https://www.youtube.com/watch?v=YoHD9XEInc0',
@@ -34,11 +35,12 @@ const SCORE = {
 
 // Minimal chrome.* so popup.js runs: pretend the content script detected "Inception".
 const CHROME_STUB = `
+  const emptyStore = { get: () => Promise.resolve({}), set: () => Promise.resolve(), remove: () => Promise.resolve() };
   window.chrome = {
     runtime: {},
-    storage: { local: { get: () => Promise.resolve({}), set: () => Promise.resolve() } },
+    storage: { local: emptyStore, session: emptyStore },
     tabs: {
-      query: () => Promise.resolve([{ id: 1 }]),
+      query: () => Promise.resolve([{ id: 1, url: 'https://example.com/watch' }]),
       sendMessage: (_id, _msg, cb) => cb({ title: 'Inception' }),
     },
   };
@@ -75,6 +77,12 @@ async function main() {
   assert.ok(credits.includes('Christopher Nolan') && credits.includes('Leonardo DiCaprio'), 'credits render');
   assert.ok((await page.locator('.awards').innerText()).includes('Oscars'), 'awards render');
   assert.ok(await page.locator('.wl-add').count(), 'add-to-watchlist button renders');
+
+  // "Not this title?" escape hatch → switches to manual search, pre-filled with the wrong guess.
+  assert.ok(await page.locator('#not-this').count(), 'not-this button renders');
+  await page.locator('#not-this').click();
+  await page.waitForSelector('#search', { timeout: 5000 });
+  assert.strictEqual(await page.locator('#q').inputValue(), 'Inception', 'search is pre-filled with the guess');
 
   // Theme tokens swap the palette (dark vs light give different backgrounds).
   const bgFor = (t) =>

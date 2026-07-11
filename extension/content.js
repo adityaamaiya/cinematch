@@ -95,11 +95,26 @@ function slugTitle() {
   return /[a-z]/i.test(t) && t.length > 1 ? t : null;
 }
 
-// A 4-digit year disambiguates same-name titles. Prefer the URL (…/the-batman-2022/…);
-// fall back to the page title (e.g. a YouTube trailer "… (2010) …").
+// Generic fallback for sites we have no detector for: the Open Graph / Twitter-card title. Far more
+// reliable than <h1> (often site branding, e.g. Letterboxd's "Letterboxd — Your life in film").
+// Strips the site suffix after the first separator and clean() drops a trailing "(year)".
+function metaTitle() {
+  const el = document.querySelector('meta[property="og:title"], meta[name="twitter:title"]');
+  const raw = el && el.getAttribute('content');
+  if (!raw) return null;
+  const cut = raw.split(/\s+[|•⭐]\s*/)[0].split(/\s+-\s+/)[0];
+  const t = clean(cut);
+  return t && /[a-z]/i.test(t) && t.length > 1 ? t : null;
+}
+
+// A 4-digit year disambiguates same-name titles. Prefer the URL (…/the-batman-2022/…), then the
+// og:title ("Inception (2010)"), then the page <title>.
 function detectedYear() {
   const fromUrl = location.pathname.match(/\b(19|20)\d{2}\b/);
   if (fromUrl) return Number(fromUrl[0]);
+  const meta = document.querySelector('meta[property="og:title"]');
+  const fromMeta = meta && (meta.getAttribute('content') || '').match(/\b(19|20)\d{2}\b/);
+  if (fromMeta) return Number(fromMeta[0]);
   const fromTitle = document.title.match(/\((19|20)\d{2}\)/);
   return fromTitle ? Number(fromTitle[0].slice(1, 5)) : undefined;
 }
@@ -107,13 +122,21 @@ function detectedYear() {
 function detectTitle() {
   const host = location.hostname.replace(/^www\./, '');
   const key = Object.keys(detectors).find((d) => host.endsWith(d));
-  const title = (key ? detectors[key]() : firstText(['h1'])) || slugTitle();
+  // Detector for known sites; otherwise og:title → <h1>; slug as a last resort for any site.
+  const title = (key ? detectors[key]() : metaTitle() || firstText(['h1'])) || slugTitle();
   return title ? { title, year: detectedYear() } : null;
 }
 
 // In the browser: wire the message listener. Guarded so this file can also be imported in Node
-// (tests) where `chrome` doesn't exist.
-if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+// (tests) where `chrome` doesn't exist, and so on-demand re-injection (popup → chrome.scripting on
+// sites with no auto content script) doesn't stack duplicate listeners.
+if (
+  typeof chrome !== 'undefined' &&
+  chrome.runtime &&
+  chrome.runtime.onMessage &&
+  !window.__cinematchWired
+) {
+  window.__cinematchWired = true;
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg && msg.type === 'DETECT_TITLE') {
       sendResponse(detectTitle());

@@ -146,23 +146,51 @@ function watchlistBtnHtml(data) {
     <button class="ghost" id="score-mylist">📋 My watchlist</button>`;
 }
 
+// A released film with almost no votes has a meaningless rating (0 → would read "Skip"). Show it
+// as unrated instead of a bogus verdict.
+const MIN_VOTES = 5;
+
+// "Not this title?" lives in the header (see index) — shown only when a title is on screen, so the
+// user can jump to manual search (pre-filled) whenever detection is wrong. currentGuess feeds it.
+let currentGuess = null;
+function toggleNotThis(title) {
+  const btn = document.getElementById('not-this');
+  if (!btn) return;
+  currentGuess = title || null;
+  btn.hidden = !title;
+}
+
+// Poster + title + a muted status line, no verdict/taste. Shared by "Not out yet" and "Too new".
+function renderStatus(data, status) {
+  view.innerHTML = `
+    <div class="hero">
+      ${posterHtml(data.posterUrl)}
+      <div class="hero-main">
+        <div class="verdict" style="color:var(--muted)">${status.headline}</div>
+        ${titleLine(data)}
+        ${status.sub ? `<div class="rating">${status.sub}</div>` : ''}
+      </div>
+    </div>
+    ${creditsHtml(data)}
+    ${trailerHtml(data.trailerUrl)}
+    ${watchlistBtnHtml(data)}`;
+  bindWatchlistAdd();
+  toggleNotThis(data.title);
+}
+
 function renderScore(data) {
   // Not released yet → no verdict (no rating exists); show the date instead.
   if (data.released === false) {
-    view.innerHTML = `
-      <div class="hero">
-        ${posterHtml(data.posterUrl)}
-        <div class="hero-main">
-          <div class="verdict" style="color:var(--muted)">Not out yet</div>
-          ${titleLine(data)}
-          ${data.releaseDate ? `<div class="rating">🍿 Releases ${escapeHtml(data.releaseDate)}</div>` : ''}
-        </div>
-      </div>
-      ${creditsHtml(data)}
-      ${trailerHtml(data.trailerUrl)}
-      ${watchlistBtnHtml(data)}`;
-    bindWatchlistAdd();
-    return;
+    return renderStatus(data, {
+      headline: 'Not out yet',
+      sub: data.releaseDate ? `🍿 Releases ${escapeHtml(data.releaseDate)}` : '',
+    });
+  }
+  // Released but barely rated → the TMDB average is noise; don't show a verdict. Only when we
+  // actually have a vote count — entries cached before voteCount existed omit it, and (like the
+  // `released` guard) a missing value is treated as "rated" so old cache entries still show a verdict.
+  if (typeof data.voteCount === 'number' && data.voteCount < MIN_VOTES) {
+    return renderStatus(data, { headline: '🆕 Too new', sub: 'Not enough ratings yet' });
   }
 
   const taste = data.tasteMatch
@@ -186,6 +214,7 @@ function renderScore(data) {
     ${watchlistBtnHtml(data)}
     ${watchHtml(data.watch)}`;
   bindWatchlistAdd();
+  toggleNotThis(data.title);
 }
 
 function bindWatchlistAdd() {
@@ -223,11 +252,12 @@ function bindWatchlistAdd() {
   });
 }
 
-function renderManual(message) {
+function renderManual(message, prefill) {
+  toggleNotThis(null); // already in search view — no "not this?" needed
   view.innerHTML = `
     ${message ? `<p class="muted center">${message}</p>` : ''}
     <form id="search">
-      <input id="q" placeholder="Movie or show title…" autofocus />
+      <input id="q" placeholder="Movie or show title…" value="${prefill ? escapeHtml(prefill) : ''}" autofocus />
       <button type="submit">Check</button>
     </form>
     <button class="ghost" id="show-watchlist">📋 My watchlist</button>
@@ -235,10 +265,12 @@ function renderManual(message) {
     <div class="moods">${MOODS.map((m) => `<button class="mood" data-mood="${m}">${m}</button>`).join('')}</div>
     <div id="recs"></div>`;
 
+  const input = document.getElementById('q');
+  if (prefill) input.select(); // ready to overwrite the wrong guess
   document.getElementById('search').addEventListener('submit', (e) => {
     e.preventDefault();
-    const q = document.getElementById('q').value.trim();
-    if (q) scoreTitle(q);
+    const q = input.value.trim();
+    if (q) pickTitle(q); // manual correction → remember it for this tab
   });
   document.getElementById('show-watchlist').addEventListener('click', renderWatchlist);
   document.querySelectorAll('.mood').forEach((btn) =>
@@ -249,6 +281,7 @@ function renderManual(message) {
 // "My list": the watchlist, scored + taste-ranked. Click an item to re-score it, ✕ to remove.
 // `back` returns to wherever you opened it from (the movie you were on, or the search view).
 async function renderWatchlist(back) {
+  toggleNotThis(null);
   const goBack = typeof back === 'function' ? back : () => renderManual();
   view.innerHTML = `<p class="muted center">Loading your watchlist…</p>`;
   try {
@@ -281,7 +314,7 @@ async function renderWatchlist(back) {
     view.querySelectorAll('.rec').forEach((el) => {
       const title = el.dataset.title;
       const year = el.dataset.year ? Number(el.dataset.year) : undefined;
-      el.querySelector('.rec-open').addEventListener('click', () => scoreTitle(title, year));
+      el.querySelector('.rec-open').addEventListener('click', () => pickTitle(title, year));
       el.querySelector('.wl-remove').addEventListener('click', async (e) => {
         e.stopPropagation();
         await fetch(`${await backendUrl()}/watchlist`, {
@@ -329,9 +362,9 @@ async function recommend(mood) {
           <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${r.verdict}</span></div>`,
       )
       .join('');
-    // Click / Enter a pick → score it.
+    // Click / Enter a pick → score it (and remember it for this tab).
     recs.querySelectorAll('.rec').forEach((el) => {
-      const go = () => scoreTitle(el.dataset.title);
+      const go = () => pickTitle(el.dataset.title);
       el.addEventListener('click', go);
       el.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -345,14 +378,63 @@ async function recommend(mood) {
   }
 }
 
-// Ask the content script for a detected title; fall back to manual on any failure.
-async function detect() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return renderManual();
-  chrome.tabs.sendMessage(tab.id, { type: 'DETECT_TITLE' }, (resp) => {
-    if (chrome.runtime.lastError || !resp?.title) renderManual('No movie/show detected');
-    else scoreTitle(resp.title, resp.year);
+// --- Per-tab title override ---------------------------------------------------------------------
+// Auto-detection is best-effort (esp. on YouTube / same-name titles). When it's wrong, the user
+// corrects it via the "Not this?" button → manual search; we remember that choice for THIS tab so
+// reopening the popup shows the corrected title instead of re-detecting. Kept in session storage
+// (clears when the browser closes) and scoped to the tab's current URL, so navigating away in the
+// same tab re-detects rather than showing a stale correction.
+let activeTab = null;
+
+function overrideKey() {
+  return activeTab?.id != null ? `ov_${activeTab.id}` : null;
+}
+async function getOverride() {
+  const key = overrideKey();
+  if (!key) return null;
+  const store = await chrome.storage.session.get(key);
+  const ov = store[key];
+  return ov && ov.url === activeTab.url ? ov : null;
+}
+async function setOverride(title, year) {
+  const key = overrideKey();
+  if (key) await chrome.storage.session.set({ [key]: { url: activeTab.url, title, year } });
+}
+
+// User explicitly chose a title (search / pick) for this tab → persist it, then score.
+function pickTitle(title, year) {
+  setOverride(title, year);
+  scoreTitle(title, year);
+}
+
+// Ask the content script for a detected title. On sites with no auto-injected content script
+// (only 7 are listed in the manifest), inject it on demand via chrome.scripting (activeTab covers
+// the current tab) and retry — so detection works on any site, not just the built-in ones.
+function detectFromPage() {
+  if (!activeTab?.id) return renderManual();
+  askForTitle((resp) => {
+    if (resp?.title) return scoreTitle(resp.title, resp.year);
+    chrome.scripting.executeScript({ target: { tabId: activeTab.id }, files: ['content.js'] }, () => {
+      if (chrome.runtime.lastError) return renderManual('No movie/show detected'); // restricted page
+      askForTitle((r2) => (r2?.title ? scoreTitle(r2.title, r2.year) : renderManual('No movie/show detected')));
+    });
+  });
+}
+function askForTitle(cb) {
+  chrome.tabs.sendMessage(activeTab.id, { type: 'DETECT_TITLE' }, (resp) => {
+    cb(chrome.runtime.lastError ? null : resp);
   });
 }
 
-detect();
+async function start() {
+  document
+    .getElementById('not-this')
+    ?.addEventListener('click', () => renderManual('Search for the right title:', currentGuess));
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  activeTab = tab || null;
+  const ov = await getOverride();
+  if (ov) return scoreTitle(ov.title, ov.year); // user's correction for this tab wins
+  detectFromPage();
+}
+
+start();
