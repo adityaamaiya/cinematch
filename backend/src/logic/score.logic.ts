@@ -25,10 +25,12 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     if (!movie) throw AppError.notFound(`No TMDB match for "${input.title}"`, 'MOVIE_NOT_FOUND');
 
     // Verdict/taste are core; where-to-watch + trailer are extras that must never break a score.
+    // Default mediaType for entries cached before it existed (and defensively for odd search hits).
+    const mediaType = movie.mediaType ?? 'movie';
     const [affinity, watch, trailerUrl] = await Promise.all([
       Profile.findAffinity(input.userKey),
-      this.tmdb.watchProviders(movie.tmdbId, movie.mediaType, WATCH_COUNTRY).catch(() => null),
-      this.tmdb.trailerUrl(movie.tmdbId, movie.mediaType).catch(() => undefined),
+      this.tmdb.watchProviders(movie.tmdbId, mediaType, WATCH_COUNTRY).catch(() => null),
+      this.tmdb.trailerUrl(movie.tmdbId, mediaType).catch(() => undefined),
     ]);
     const scored = await this.scorer.execute({ movie, affinity });
 
