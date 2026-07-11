@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="meter" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f87171"/>
+      <stop offset="0.4" stop-color="#fbbf24"/>
+      <stop offset="0.72" stop-color="#4ade80"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+  <!-- app tile -->
+  <rect width="128" height="128" rx="28" fill="#0e0e12"/>
+  <!-- gauge track -->
+  <path d="M 26 88 A 38 38 0 0 1 102 88" fill="none" stroke="#26262b" stroke-width="13" stroke-linecap="round"/>
+  <!-- gauge fill (verdict palette) -->
+  <path d="M 26 88 A 38 38 0 0 1 102 88" fill="none" stroke="url(#meter)" stroke-width="13" stroke-linecap="round"/>
+  <!-- play triangle -->
+  <path d="M 55 66 L 55 96 L 82 81 Z" fill="#f5f5f5"/>
+</svg>
