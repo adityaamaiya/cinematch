@@ -72,13 +72,31 @@
       .cr-k { color: var(--muted); font-size: 11px; letter-spacing: .03em; text-transform: uppercase; }
       .cr-v { color: var(--fg); font-weight: 600; text-align: right; }
       .awards { font-size: 12.5px; margin: 10px 0 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface); color: var(--awards-fg); line-height: 1.35; }
+      /* Taste line has its OWN vibe palette, deliberately distinct from the verdict colours.
+         strong = loud filled gradient, mild = tinted outline, mismatch = quiet slate. */
       .taste {
         margin: 12px 0 4px;
-        padding: 8px 10px;
+        padding: 9px 12px;
         border-radius: 10px;
-        background: var(--surface);
+        border: 1px solid transparent;
         text-align: center;
-        font-weight: 600;
+        font-weight: 700;
+        letter-spacing: .01em;
+      }
+      .taste.strong {
+        color: #fff;
+        background: linear-gradient(135deg, #ec4899, #f43f5e);
+        box-shadow: 0 4px 14px rgba(244, 63, 94, .35);
+      }
+      .taste.mild {
+        color: #0ea5e9;
+        background: rgba(14, 165, 233, .12);
+        border-color: rgba(14, 165, 233, .4);
+      }
+      .taste.mismatch {
+        color: #d97757;
+        background: rgba(217, 119, 87, .13);
+        border-color: rgba(217, 119, 87, .42);
       }
       .legend {
         display: flex;

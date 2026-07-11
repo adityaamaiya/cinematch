@@ -7,7 +7,8 @@
 
 The verdict (the meter) is **objective** — it comes straight from the TMDB rating band and is never
 altered. Personalisation is a **separate** attention-grabbing line ("🔥 Peak you — exactly your
-taste") derived from how the title's genres line up with the films you've rated highly.
+taste") derived from how the title's **genres, director, and lead actor** line up with the films
+you've rated highly.
 
 ---
 
@@ -17,8 +18,8 @@ taste") derived from how the title's genres line up with the films you've rated 
  movie page ──content.js──▶ popup ──GET /score?title=──▶ backend ──▶ TMDB (rating + genres)
  (Netflix, …)                                             │              │
                                                           ▼              ▼
-                                              genre affinity        ScoreCache (Mongo)
-                                              (your profile)              │
+                                     genre+director+actor         ScoreCache (Mongo)
+                                     affinity (your profile)             │
                                                           └──▶ Scorer ────┘
                                                                  │
                                           verdict + taste-match ◀┘  ──▶ gauge in popup
@@ -56,8 +57,12 @@ Everything is wired in one composition root (`src/app.ts`) and depends on interf
 | `7.5–10` | Perfection |
 
 **Taste match** (separate from the verdict): each rated verdict maps to a weight (Skip 1 … Perfection 4).
-Per-genre mean weight minus your overall mean gives a genre affinity. A title's genres averaged against
-that affinity yield `strong` / `mild` / `mismatch` (or nothing). No profile → no taste line, verdict only.
+For each **genre, director, and lead actor**, its mean weight minus your overall mean gives a signed
+affinity (relative, so it cancels a "rate everything high" bias). Scoring a title blends the three
+signals that apply — genre `0.35` / director `0.45` / actor `0.20`, renormalised over whichever are
+present (director is the strongest personal signal) — into `strong` / `mild` / `mismatch` (or nothing).
+Cutoffs are tuned to the profile's own spread (see `scripts/calibrate-affinity.ts`). No profile → no
+taste line, verdict only.
 
 ---
 

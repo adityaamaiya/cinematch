@@ -165,7 +165,7 @@ function renderScore(data) {
   }
 
   const taste = data.tasteMatch
-    ? `<div class="taste" style="color:${color(data.verdict)}">${data.tasteMatch.message}</div>`
+    ? `<div class="taste ${data.tasteMatch.level}">${data.tasteMatch.message}</div>`
     : '';
   view.innerHTML = `
     <div class="hero">
