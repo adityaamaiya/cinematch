@@ -1,6 +1,13 @@
 // TMDB HTTP client. Pure third-party adapter — no DB, no caching (that lives in the logic layer).
 // Auth is the v4 read-access token, sent as a Bearer header on every call.
-import type { ILogger, ITmdbService, TmdbMovie, WatchInfo, WatchProvider } from '../types/index.js';
+import type {
+  ILogger,
+  ITmdbService,
+  MovieCredits,
+  TmdbMovie,
+  WatchInfo,
+  WatchProvider,
+} from '../types/index.js';
 import { AppError } from '../lib/errors.js';
 
 const IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
@@ -118,8 +125,21 @@ export class TmdbService implements ITmdbService {
     return best?.key ? `https://www.youtube.com/watch?v=${best.key}` : undefined;
   }
 
+  // Director (crew) + top-billed actor (cast order 0). Either may be missing (esp. for TV).
+  async credits(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<MovieCredits> {
+    const data = await this.request<{
+      cast?: { name?: string; order?: number }[];
+      crew?: { name?: string; job?: string }[];
+    }>(`/${mediaType}/${tmdbId}/credits`, {});
+    const director = (data.crew ?? []).find((c) => c.job === 'Director')?.name;
+    const leadActor = [...(data.cast ?? [])].sort((a, b) => (a.order ?? 99) - (b.order ?? 99))[0]?.name;
+    return { director, leadActor };
+  }
+
   private async toMovie(item: TmdbSearchItem): Promise<TmdbMovie> {
     const map = await this.loadGenreMap();
+    const releaseDate = item.release_date ?? item.first_air_date ?? undefined;
+    const today = new Date().toISOString().slice(0, 10);
     return {
       tmdbId: item.id,
       mediaType: item.media_type === 'tv' ? 'tv' : 'movie',
@@ -128,6 +148,8 @@ export class TmdbService implements ITmdbService {
       rating: item.vote_average ?? 0,
       genres: (item.genre_ids ?? []).map((id) => map.get(id)).filter((g): g is string => !!g),
       posterUrl: item.poster_path ? `${IMAGE_BASE}${item.poster_path}` : undefined,
+      releaseDate,
+      released: !!releaseDate && releaseDate <= today,
     };
   }
 

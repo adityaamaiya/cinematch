@@ -64,7 +64,28 @@ describe('TmdbService.searchTitle', () => {
       rating: 8.4,
       genres: ['Action', 'Thriller'],
       posterUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg',
+      releaseDate: '2010-07-16',
+      released: true,
     });
+  });
+
+  it('marks a future release_date as not released', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        ...GENRE_ROUTES,
+        '/search/multi': {
+          body: {
+            results: [
+              { id: 9, media_type: 'movie', title: 'Future Film', release_date: '2999-01-01', genre_ids: [28] },
+            ],
+          },
+        },
+      }),
+    );
+    const movie = await service.searchTitle('Future Film');
+    expect(movie?.released).toBe(false);
+    expect(movie?.releaseDate).toBe('2999-01-01');
   });
 
   it('prefers an exact title match over a more popular partial match', async () => {
@@ -156,6 +177,32 @@ describe('TmdbService.watchProviders', () => {
   it('returns null when the country has no availability', async () => {
     vi.stubGlobal('fetch', mockFetch({ '/movie/1/watch/providers': { body: { results: { US: {} } } } }));
     expect(await service.watchProviders(1, 'movie', 'IN')).toBeNull();
+  });
+});
+
+describe('TmdbService.credits', () => {
+  it('extracts the director and top-billed actor', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        '/movie/27205/credits': {
+          body: {
+            crew: [
+              { job: 'Writer', name: 'Someone' },
+              { job: 'Director', name: 'Christopher Nolan' },
+            ],
+            cast: [
+              { name: 'Joseph Gordon-Levitt', order: 1 },
+              { name: 'Leonardo DiCaprio', order: 0 },
+            ],
+          },
+        },
+      }),
+    );
+    expect(await service.credits(27205, 'movie')).toEqual({
+      director: 'Christopher Nolan',
+      leadActor: 'Leonardo DiCaprio',
+    });
   });
 });
 

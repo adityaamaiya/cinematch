@@ -3,7 +3,7 @@ import { Scorer } from '../src/logic/scorer.logic.js';
 import type { GenreAffinity, TmdbMovie } from '../src/types/index.js';
 
 function movie(rating: number, genres: string[] = []): TmdbMovie {
-  return { tmdbId: 1, mediaType: 'movie', title: 'X', rating, genres };
+  return { tmdbId: 1, mediaType: 'movie', title: 'X', rating, genres, released: true };
 }
 
 const scorer = new Scorer();

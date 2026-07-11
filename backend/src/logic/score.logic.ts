@@ -1,4 +1,12 @@
-import type { ILogic, ITmdbService, ScoreResult, WatchInfo } from '../types/index.js';
+import type {
+  ILogic,
+  IOmdbService,
+  ITmdbService,
+  MovieCredits,
+  OmdbInfo,
+  ScoreResult,
+  WatchInfo,
+} from '../types/index.js';
 import { AppError } from '../lib/errors.js';
 import { Profile } from '../models/profile.model.js';
 import { TtlCache } from '../lib/ttlCache.js';
@@ -13,28 +21,37 @@ export interface ScoreInput {
 
 // ponytail: single country for now (user is in India); make it a request/env param if needed.
 const WATCH_COUNTRY = 'IN';
-// Where-to-watch drifts (a title leaves Netflix); trailers don't. 6h is a fine freshness/quota trade.
+// Where-to-watch drifts (a title leaves Netflix); trailers/credits don't. 6h is a fine trade.
 const EXTRAS_TTL_MS = 6 * 60 * 60 * 1000;
+
+function youtubeSearchUrl(title: string, year?: number): string {
+  const q = `${title} ${year ?? ''} trailer`.trim();
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+}
 
 export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
   private readonly watchCache = new TtlCache<WatchInfo | null>(EXTRAS_TTL_MS);
   private readonly trailerCache = new TtlCache<string | undefined>(EXTRAS_TTL_MS);
+  private readonly creditsCache = new TtlCache<MovieCredits>(EXTRAS_TTL_MS);
+  private readonly omdbCache = new TtlCache<OmdbInfo | null>(EXTRAS_TTL_MS);
 
   constructor(
     private readonly lookup: MovieLookup,
     private readonly scorer: Scorer,
     private readonly tmdb: ITmdbService,
+    private readonly omdb: IOmdbService,
   ) {}
 
   async execute(input: ScoreInput): Promise<ScoreResult> {
     const movie = await this.lookup.execute({ title: input.title, year: input.year });
     if (!movie) throw AppError.notFound(`No TMDB match for "${input.title}"`, 'MOVIE_NOT_FOUND');
 
-    // Verdict/taste are core; where-to-watch + trailer are cached extras that must never break a score.
+    // Verdict/taste are core; everything else is a cached extra that must never break a score.
     // Default mediaType for entries cached before it existed (and defensively for odd search hits).
     const mediaType = movie.mediaType ?? 'movie';
     const cacheKey = `${mediaType}:${movie.tmdbId}`;
-    const [affinity, watch, trailerUrl] = await Promise.all([
+    const omdbKey = `${movie.title.toLowerCase()}|${movie.year ?? ''}`;
+    const [affinity, watch, officialTrailer, credits, omdb] = await Promise.all([
       Profile.findAffinity(input.userKey),
       this.watchCache
         .remember(`${cacheKey}:${WATCH_COUNTRY}`, () =>
@@ -44,8 +61,16 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       this.trailerCache
         .remember(cacheKey, () => this.tmdb.trailerUrl(movie.tmdbId, mediaType))
         .catch(() => undefined),
+      this.creditsCache
+        .remember(cacheKey, () => this.tmdb.credits(movie.tmdbId, mediaType))
+        .catch((): MovieCredits => ({})),
+      this.omdbCache.remember(omdbKey, () => this.omdb.lookup(movie.title, movie.year)).catch(() => null),
     ]);
-    const scored = await this.scorer.execute({ movie, affinity });
+
+    // Unreleased titles have no real rating yet → no verdict/taste; the popup shows the date instead.
+    const scored = movie.released
+      ? await this.scorer.execute({ movie, affinity })
+      : { verdict: 'Skip' as const, tasteMatch: null };
 
     return {
       title: movie.title,
@@ -54,8 +79,14 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       tmdbRating: movie.rating,
       tasteMatch: scored.tasteMatch,
       posterUrl: movie.posterUrl,
-      trailerUrl,
+      trailerUrl: officialTrailer ?? youtubeSearchUrl(movie.title, movie.year),
       watch: watch as WatchInfo | null,
+      director: credits.director,
+      leadActor: credits.leadActor,
+      awards: omdb?.awards,
+      imdbRating: omdb?.imdbRating,
+      released: movie.released,
+      releaseDate: movie.releaseDate,
     };
   }
 }

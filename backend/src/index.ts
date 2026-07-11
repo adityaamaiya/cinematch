@@ -4,6 +4,7 @@ import { env } from './config/env.js';
 import { createApp } from './app.js';
 import { Logger } from './lib/logger.js';
 import { TmdbService } from './services/tmdb.service.js';
+import { OmdbService } from './services/omdb.service.js';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const logger = new Logger('boot');
@@ -13,7 +14,8 @@ async function main(): Promise<void> {
   logger.info('Connected to MongoDB');
 
   const tmdb = new TmdbService(TMDB_BASE_URL, env.tmdbReadToken, new Logger('tmdb'));
-  const app = createApp({ tmdb, syncToken: env.syncToken });
+  const omdb = new OmdbService(env.omdbApiKey, new Logger('omdb'));
+  const app = createApp({ tmdb, omdb, syncToken: env.syncToken });
 
   app.listen(env.port, () => {
     logger.info(`CineMatch backend listening on http://localhost:${env.port}`);

@@ -20,6 +20,8 @@ export interface Env {
   tmdbApiKey: string;
   tmdbReadToken: string;
   syncToken: string;
+  /** Optional — enables the awards + IMDb-rating line. Empty string = disabled. */
+  omdbApiKey: string;
 }
 
 export const env: Env = {
@@ -28,4 +30,5 @@ export const env: Env = {
   tmdbApiKey: required('TMDB_API_KEY'),
   tmdbReadToken: required('TMDB_READ_ACCESS_TOKEN'),
   syncToken: required('SYNC_TOKEN'),
+  omdbApiKey: optional('OMDB_API_KEY', ''),
 };

@@ -3,7 +3,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { Profile } from '../src/models/profile.model.js';
 import { ScoreCache } from '../src/models/scoreCache.model.js';
-import type { ITmdbService, TmdbMovie } from '../src/types/index.js';
+import type { IOmdbService, ITmdbService, TmdbMovie } from '../src/types/index.js';
 
 const SYNC_TOKEN = 'secret-token';
 
@@ -15,6 +15,8 @@ const inception: TmdbMovie = {
   rating: 8.4,
   genres: ['Action', 'Science Fiction'],
   posterUrl: 'https://img/inception.jpg',
+  releaseDate: '2010-07-16',
+  released: true,
 };
 
 // Fake TMDB client so routes never hit the network.
@@ -28,9 +30,14 @@ const tmdb: ITmdbService = {
     buy: [],
   })),
   trailerUrl: vi.fn(async () => 'https://www.youtube.com/watch?v=YoHD9XEInc0'),
+  credits: vi.fn(async () => ({ director: 'Christopher Nolan', leadActor: 'Leonardo DiCaprio' })),
 };
 
-const app = createApp({ tmdb, syncToken: SYNC_TOKEN });
+const omdb: IOmdbService = {
+  lookup: vi.fn(async () => ({ awards: 'Won 4 Oscars.', imdbRating: '8.8' })),
+};
+
+const app = createApp({ tmdb, omdb, syncToken: SYNC_TOKEN });
 
 beforeEach(() => {
   // Spy on model statics so no real Mongo is needed.
@@ -52,6 +59,11 @@ describe('GET /score', () => {
       tmdbRating: 8.4,
       trailerUrl: 'https://www.youtube.com/watch?v=YoHD9XEInc0',
       watch: { flatrate: [{ name: 'Netflix' }] },
+      director: 'Christopher Nolan',
+      leadActor: 'Leonardo DiCaprio',
+      awards: 'Won 4 Oscars.',
+      imdbRating: '8.8',
+      released: true,
     });
   });
 

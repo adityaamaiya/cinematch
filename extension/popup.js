@@ -65,8 +65,9 @@ function watchHtml(w) {
   if (!w) return '';
   const groups = [
     ['flatrate', 'Stream'],
-    ['rent', 'Rent'],
-    ['buy', 'Buy'],
+    // Rent + Buy are hidden by default — uncomment to show purchase/rental options too:
+    // ['rent', 'Rent'],
+    // ['buy', 'Buy'],
   ]
     .filter(([k]) => w[k] && w[k].length)
     .map(([k, label]) => `<div class="kind">${label}</div><div class="providers">${providerChips(w[k], w.link)}</div>`)
@@ -84,20 +85,97 @@ function trailerHtml(url) {
     : '';
 }
 
+function posterHtml(url) {
+  return url ? `<img class="poster" src="${escapeHtml(url)}" alt="" />` : '';
+}
+
+function titleLine(data) {
+  return `<div class="rating">${escapeHtml(data.title)}${data.year ? ` · ${data.year}` : ''}</div>`;
+}
+
+// Director · lead actor, when available.
+function creditsHtml(data) {
+  const bits = [data.director, data.leadActor].filter(Boolean).map(escapeHtml);
+  return bits.length ? `<div class="credits">${bits.join(' · ')}</div>` : '';
+}
+
+function awardsHtml(data) {
+  return data.awards ? `<div class="awards">🏆 ${escapeHtml(data.awards)}</div>` : '';
+}
+
+function ratingsLine(data) {
+  const tmdb = `TMDB ${data.tmdbRating.toFixed(1)}`;
+  const imdb = data.imdbRating ? ` · IMDb ${escapeHtml(String(data.imdbRating))}` : '';
+  return `<div class="rating">${tmdb}${imdb}</div>`;
+}
+
+function watchlistBtnHtml(data) {
+  return `<button class="wl-add" data-title="${escapeHtml(data.title)}"
+    data-year="${data.year ?? ''}" data-type="${escapeHtml(data.type || 'Movie')}">＋ Add to watchlist</button>`;
+}
+
 function renderScore(data) {
+  // Not released yet → no verdict (no rating exists); show the date instead.
+  if (data.released === false) {
+    view.innerHTML = `
+      <div class="center">
+        ${posterHtml(data.posterUrl)}
+        <div class="verdict" style="color:var(--muted)">Not out yet</div>
+        ${titleLine(data)}
+        ${data.releaseDate ? `<div class="rating">🍿 Releases ${escapeHtml(data.releaseDate)}</div>` : ''}
+        ${creditsHtml(data)}
+      </div>
+      ${trailerHtml(data.trailerUrl)}
+      ${watchlistBtnHtml(data)}`;
+    bindWatchlistAdd();
+    return;
+  }
+
   const taste = data.tasteMatch
     ? `<div class="taste" style="color:${color(data.verdict)}">${data.tasteMatch.message}</div>`
     : '';
   view.innerHTML = `
     <div class="center">
+      ${posterHtml(data.posterUrl)}
       ${gaugeSvg(data.tmdbRating, data.verdict)}
       <div class="verdict" style="color:${color(data.verdict)}">${data.verdict}</div>
-      <div class="rating">${escapeHtml(data.title)}${data.year ? ` · ${data.year}` : ''} · TMDB ${data.tmdbRating.toFixed(1)}/10</div>
+      ${titleLine(data)}
+      ${ratingsLine(data)}
+      ${creditsHtml(data)}
     </div>
     ${taste}
+    ${awardsHtml(data)}
     ${legendHtml()}
     ${trailerHtml(data.trailerUrl)}
+    ${watchlistBtnHtml(data)}
     ${watchHtml(data.watch)}`;
+  bindWatchlistAdd();
+}
+
+function bindWatchlistAdd() {
+  const btn = view.querySelector('.wl-add');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+    try {
+      const body = {
+        title: btn.dataset.title,
+        type: btn.dataset.type,
+        year: btn.dataset.year ? Number(btn.dataset.year) : undefined,
+      };
+      const res = await fetch(`${await backendUrl()}/watchlist`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('failed');
+      btn.textContent = '✓ On your watchlist';
+    } catch {
+      btn.disabled = false;
+      btn.textContent = 'Couldn’t add — retry';
+    }
+  });
 }
 
 function renderManual(message) {
@@ -107,6 +185,7 @@ function renderManual(message) {
       <input id="q" placeholder="Movie or show title…" autofocus />
       <button type="submit">Check</button>
     </form>
+    <button class="ghost" id="show-watchlist">📋 My watchlist</button>
     <p class="muted" style="margin:14px 0 4px">Or pick a mood:</p>
     <div class="moods">${MOODS.map((m) => `<button class="mood" data-mood="${m}">${m}</button>`).join('')}</div>
     <div id="recs"></div>`;
@@ -116,19 +195,62 @@ function renderManual(message) {
     const q = document.getElementById('q').value.trim();
     if (q) scoreTitle(q);
   });
+  document.getElementById('show-watchlist').addEventListener('click', renderWatchlist);
   document.querySelectorAll('.mood').forEach((btn) =>
     btn.addEventListener('click', () => recommend(btn.dataset.mood)),
   );
+}
+
+// "My list": the watchlist, scored + taste-ranked. Click an item to re-score it, ✕ to remove.
+async function renderWatchlist() {
+  view.innerHTML = `<p class="muted center">Loading your watchlist…</p>`;
+  try {
+    const res = await fetch(`${await backendUrl()}/watchlist`);
+    const body = await res.json();
+    if (!body.success) throw new Error(body.error?.message || 'Request failed');
+    const items = body.data;
+    const list = items.length
+      ? items
+          .map(
+            (r) => `<div class="rec" data-title="${escapeHtml(r.title)}" data-year="${r.year ?? ''}">
+              <span role="button" tabindex="0" class="rec-open" style="flex:1">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
+              <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${r.verdict}</span>
+              <button class="wl-remove" title="Remove" aria-label="Remove">✕</button>
+            </div>`,
+          )
+          .join('')
+      : `<p class="muted center">Your watchlist is empty. Add titles from any movie page.</p>`;
+    view.innerHTML = `<button class="ghost" id="wl-back">← Back</button><div id="recs">${list}</div>`;
+
+    document.getElementById('wl-back').addEventListener('click', () => renderManual());
+    view.querySelectorAll('.rec').forEach((el) => {
+      const title = el.dataset.title;
+      const year = el.dataset.year ? Number(el.dataset.year) : undefined;
+      el.querySelector('.rec-open').addEventListener('click', () => scoreTitle(title, year));
+      el.querySelector('.wl-remove').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await fetch(`${await backendUrl()}/watchlist`, {
+          method: 'DELETE',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title, year }),
+        });
+        renderWatchlist();
+      });
+    });
+  } catch (err) {
+    renderManual(`Couldn’t load watchlist (${escapeHtml(err.message)})`);
+  }
 }
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 }
 
-async function scoreTitle(title) {
+async function scoreTitle(title, year) {
   view.innerHTML = `<p class="muted center">Scoring “${escapeHtml(title)}”…</p>`;
   try {
-    const res = await fetch(`${await backendUrl()}/score?title=${encodeURIComponent(title)}`);
+    const q = `title=${encodeURIComponent(title)}${year ? `&year=${year}` : ''}`;
+    const res = await fetch(`${await backendUrl()}/score?${q}`);
     const body = await res.json();
     if (res.status === 404) return renderManual(`No match for “${escapeHtml(title)}”. Try another title:`);
     if (!body.success) throw new Error(body.error?.message || 'Request failed');
@@ -173,8 +295,8 @@ async function detect() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return renderManual();
   chrome.tabs.sendMessage(tab.id, { type: 'DETECT_TITLE' }, (resp) => {
-    if (chrome.runtime.lastError || !resp?.title) renderManual('No movie detected on this page.');
-    else scoreTitle(resp.title);
+    if (chrome.runtime.lastError || !resp?.title) renderManual('No movie/show detected');
+    else scoreTitle(resp.title, resp.year);
   });
 }
 

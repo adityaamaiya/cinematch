@@ -3,7 +3,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 
 describe('GET /health', () => {
-  const app = createApp({ tmdb: {} as never, syncToken: 'test-token' });
+  const app = createApp({ tmdb: {} as never, omdb: {} as never, syncToken: 'test-token' });
 
   it('returns an ok ApiResponse envelope', async () => {
     const res = await request(app).get('/health');

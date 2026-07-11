@@ -41,7 +41,8 @@ export interface RatedMovie {
 export interface WatchlistMovie {
   title: string;
   type: ContentType;
-  /** Which Moctale collection it came from (or "seed"). */
+  year?: number;
+  /** Where it came from: a Moctale collection id, "seed", or "manual" (added from the extension). */
   collectionId: string;
 }
 
@@ -57,6 +58,10 @@ export interface TmdbMovie {
   /** TMDB genre names, e.g. ["Action", "Thriller"]. */
   genres: string[];
   posterUrl?: string;
+  /** Release date (YYYY-MM-DD) if TMDB has one. */
+  releaseDate?: string;
+  /** True when the release date exists and is on/before today. Unreleased → no real rating yet. */
+  released: boolean;
 }
 
 /** One streaming/rental service a title is available on (JustWatch data via TMDB). */
@@ -100,10 +105,22 @@ export interface ScoreResult {
   /** Personalised taste-match line, or null when there's no profile / no genre overlap. */
   tasteMatch: TasteMatch | null;
   posterUrl?: string;
-  /** YouTube trailer URL, or undefined when TMDB has none. */
+  /** YouTube trailer URL — an official TMDB trailer, else a YouTube search link. */
   trailerUrl?: string;
   /** Where to watch (one country), or null when TMDB has no availability data. */
   watch: WatchInfo | null;
+  /** Director, when TMDB credits have one. */
+  director?: string;
+  /** Top-billed cast member, when available. */
+  leadActor?: string;
+  /** Awards summary from OMDb (e.g. "Won 4 Oscars..."), when OMDb is configured + has data. */
+  awards?: string;
+  /** IMDb rating string from OMDb (e.g. "8.8"), when available. */
+  imdbRating?: string;
+  /** False when the title isn't released yet — the popup shows the date instead of a verdict. */
+  released: boolean;
+  /** Release date (YYYY-MM-DD) if known. */
+  releaseDate?: string;
 }
 
 /** A single recommendation (grid-page fallback). */
@@ -112,6 +129,17 @@ export interface Recommendation {
   year?: number;
   verdict: Verdict;
   tmdbRating: number;
+  posterUrl?: string;
+}
+
+/** A watchlist entry scored + taste-matched for the "My list" view. */
+export interface WatchlistScored {
+  title: string;
+  year?: number;
+  type: ContentType;
+  verdict: Verdict;
+  tmdbRating: number;
+  tasteMatch: TasteMatch | null;
   posterUrl?: string;
 }
 
@@ -139,6 +167,25 @@ export interface ITmdbService {
   ): Promise<WatchInfo | null>;
   /** Best YouTube trailer URL for the title, or undefined if TMDB has none. */
   trailerUrl(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<string | undefined>;
+  /** Director + top-billed actor from TMDB credits. Either field may be undefined. */
+  credits(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<MovieCredits>;
+}
+
+/** Director + lead actor for a title. */
+export interface MovieCredits {
+  director?: string;
+  leadActor?: string;
+}
+
+/** Awards + IMDb rating from OMDb (omdbapi.com). */
+export interface OmdbInfo {
+  awards?: string;
+  imdbRating?: string;
+}
+
+export interface IOmdbService {
+  /** Look up awards + IMDb rating by title (+ year). Returns null when unconfigured or not found. */
+  lookup(title: string, year?: number): Promise<OmdbInfo | null>;
 }
 
 // --- Logger contract ---

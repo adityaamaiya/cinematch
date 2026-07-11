@@ -33,7 +33,8 @@
         "*://*.jiocinema.com/*",
         "*://*.hotstar.com/*",
         "*://*.google.com/*",
-        "*://*.wikipedia.org/*"
+        "*://*.wikipedia.org/*",
+        "*://*.youtube.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

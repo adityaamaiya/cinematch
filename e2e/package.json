@@ -1,0 +1,12 @@
+{
+  "name": "cinematch-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Playwright end-to-end test for the extension popup.",
+  "scripts": {
+    "test:popup": "node e2e-popup.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

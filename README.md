@@ -24,8 +24,9 @@ taste") derived from how the title's genres line up with the films you've rated 
                                           verdict + taste-match ◀┘  ──▶ gauge in popup
 ```
 
-Your taste profile is loaded once via `POST /sync-profile` — from a local Playwright scraper of your
-[Moctale](https://www.moctale.in) reviews, or from a plain JSON file (see [profiles](#supplying-a-taste-profile)).
+The popup also shows the **director + lead actor**, an **awards** line + **IMDb rating** (via OMDb),
+and an **＋ Add to watchlist** button. Your taste profile is loaded once by seeding a JSON file (see
+[Add a taste profile](#add-a-taste-profile)).
 
 ## Repo layout
 
@@ -33,8 +34,8 @@ Your taste profile is loaded once via `POST /sync-profile` — from a local Play
 |------|------|
 | `extension/` | Chrome extension, vanilla JS, Manifest v3 (load unpacked). |
 | `backend/` | Node + Express + TypeScript API. Layered: **route → controller → logic → service / model**. |
-| `scraper/` | Local Playwright script — logs into Moctale (manual, once) and syncs your ratings. |
-| `deploy/`, `docs/DEPLOY.md`, `.github/workflows/` | Nginx config + step-by-step deploy + CI/CD. |
+| `e2e/` | Playwright end-to-end test for the popup. |
+| `deploy/`, `.github/workflows/` | Nginx config + CI/CD (test on push, deploy on merge to `main`). |
 
 ### Backend architecture
 - **route** — maps a path to a controller method (thin).
@@ -60,32 +61,15 @@ that affinity yield `strong` / `mild` / `mismatch` (or nothing). No profile → 
 
 ---
 
-## Quick start (local dev)
+## Run the backend
 
-**Backend**
 ```bash
 cd backend
 npm install
-cp .env.example .env      # fill TMDB tokens + MONGODB_URI + SYNC_TOKEN
+cp .env.example .env      # fill TMDB tokens + MONGODB_URI + SYNC_TOKEN (OMDB_API_KEY optional)
 npm run dev               # http://localhost:3000/health
 npm test                  # vitest
 ```
-
-**Extension**
-1. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select `extension/`.
-2. Open a movie page (or click the icon anywhere) → the popup shows the verdict, or a search box + mood picks.
-
-**Scraper** (optional, needs Moctale account)
-```bash
-cd scraper
-npm install
-npx playwright install chromium
-cp .env.example .env       # BACKEND_URL, SYNC_TOKEN (match backend), Moctale URLs
-npm run scrape             # a browser opens — log in once, it does the rest
-npm test                   # parse unit tests
-```
-
-## Environment variables
 
 **backend/.env**
 
@@ -93,43 +77,47 @@ npm test                   # parse unit tests
 |---|---|
 | `TMDB_API_KEY` | TMDB v3 key (fallback). |
 | `TMDB_READ_ACCESS_TOKEN` | TMDB v4 read token — sent as Bearer on API calls. |
-| `MONGODB_URI` | MongoDB Atlas connection string. |
+| `MONGODB_URI` | MongoDB connection string. |
 | `PORT` | HTTP port (default 3000). |
 | `SYNC_TOKEN` | Bearer secret guarding `POST /sync-profile`. |
+| `OMDB_API_KEY` | Optional — enables the awards + IMDb line ([free key](https://www.omdbapi.com/apikey.aspx)). |
 | `BACKEND_URL` | Only for `npm run seed` (defaults to `http://localhost:$PORT`). |
-
-**scraper/.env**
-
-| Var | Purpose |
-|---|---|
-| `BACKEND_URL` | Where to POST the profile. |
-| `SYNC_TOKEN` | Must equal the backend's. |
-| `MOCTALE_PROFILE_URL` | Your Moctale reviews page. |
-| `MOCTALE_WATCHLIST_URLS` | Comma-separated collection URLs. |
 
 Real `.env` files are gitignored; commit only `.env.example`.
 
-## Supplying a taste profile
+## Install the extension
 
-All paths hit `POST /sync-profile` (Bearer `SYNC_TOKEN`) with `{ ratedMovies, watchlist }`:
-1. **None** — the extension still works; you get objective verdicts, no taste line.
-2. **Seed a JSON file (recommended)** — put your ratings as `{title, type, year, verdict}` records in
-   `backend/profile.example.json` and run `cd backend && npm run seed`.
-3. **Import from a source you own** — `backend/scripts/moctale-to-profile.ts` shows how to convert an
-   exported ratings dump into the seed shape. Adapt it to whatever site/export you use.
+1. Open `chrome://extensions` and turn on **Developer mode** (top-right).
+2. Click **Load unpacked** and select the `extension/` folder.
+3. Pin the **CineMatch** icon. Click it on any movie/show page (Netflix, Prime, Hotstar, YouTube,
+   Google, Wikipedia) — or click it anywhere and type a title.
+4. Point it at your backend: `extension/popup.js` → `DEFAULT_BACKEND` (defaults to a hosted URL; set
+   your own after deploying).
 
-A Playwright scraper lives in `scraper/` as a reference for session-based sources, but sites behind
-an interactive bot check (e.g. Cloudflare managed challenge) can't be scraped headlessly — export your
-data in the browser and seed it instead.
+## Add a taste profile
+
+The taste-match line comes from your own ratings, loaded once via `POST /sync-profile`. **Seed a JSON
+file** — the simplest path, works for anyone:
+
+```bash
+cd backend
+# edit profile.example.json: records of { title, type, year, verdict }
+npm run seed              # POSTs it to /sync-profile
+```
+
+`verdict` is one of `Skip | Timepass | Go For It | Perfection`. No profile → the extension still works,
+you just get objective verdicts with no taste line. (`scripts/moctale-to-profile.ts` is an example
+converter that turns an exported ratings dump into this shape — adapt it to your own source.)
 
 ## API
 
 | Method | Route | Notes |
 |---|---|---|
 | GET | `/health` | Liveness. |
-| GET | `/score?title=&year=` | Verdict + taste match + YouTube `trailerUrl` + `watch` (JustWatch via TMDB, IN) for a title. |
+| GET | `/score?title=&year=` | Verdict + taste match + trailer + where-to-watch + director/actor + awards. |
 | GET | `/recommend?mood=&genre=&limit=` | Scored picks (grid/browse fallback). |
-| POST | `/sync-profile` | Load ratings + watchlist. **Bearer `SYNC_TOKEN` required.** |
+| GET / POST / DELETE | `/watchlist` | List (taste-ranked), add, or remove a personal watchlist item. |
+| POST | `/sync-profile` | Load ratings. **Bearer `SYNC_TOKEN` required.** |
 
 All responses use `{ success, data?, error? }`.
 

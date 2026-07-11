@@ -10,12 +10,6 @@ build/
 *.env
 !.env.example
 
-# scraper persistent browser session (contains logged-in cookies)
-scraper/.moctale-session/
-
-# scraper HTML dumps (selector tuning only)
-*.dump.html
-
 # logs / misc
 *.log
 .DS_Store

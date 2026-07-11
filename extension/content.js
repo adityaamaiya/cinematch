@@ -44,7 +44,40 @@ const detectors = {
     // Knowledge panel title (present when Google recognises a film/show).
     return firstText(['[data-attrid="title"]', 'div[role="heading"][aria-level="2"]']);
   },
+
+  'youtube.com': () => {
+    // Only a watch page has a single video; derive the film/show name from its title.
+    if (!/\/watch/.test(location.pathname)) return null;
+    const raw = firstText(['h1.ytd-watch-metadata', '#title h1', 'h1']) || document.title;
+    return movieFromVideoTitle(raw);
+  },
 };
+
+// A trailer/clip video title → the underlying film name, e.g.
+// "Inception (2010) Official Trailer #1 - Christopher Nolan Movie HD" → "Inception",
+// "PK Full Movie (2014) | Aamir Khan ..." → "PK". Cut at the first descriptor marker.
+function movieFromVideoTitle(text) {
+  let s = (text || '').replace(/\s*-\s*YouTube\s*$/i, '');
+  const markers = [
+    /\(\d{4}\)/, // (2010)
+    /\b(official\s+)?(teaser\s+)?trailer\b/i,
+    /\bteaser\b/i,
+    /\bfull\s+(movie|video|film)\b/i,
+    /\bclip\b/i,
+    /\bfeaturette\b/i,
+    /\bfirst\s+look\b/i,
+    /\bmotion\s+poster\b/i,
+    /\bvideo\s+song\b/i,
+    /\|/,
+    / - /,
+  ];
+  let cut = s.length;
+  for (const m of markers) {
+    const idx = s.search(m);
+    if (idx > 0 && idx < cut) cut = idx;
+  }
+  return clean(s.slice(0, cut));
+}
 
 // Fallback: derive a title from the URL slug. Works when the title opens in a modal (Hotstar) or
 // the DOM heuristic misses — detail URLs usually carry the title, e.g.
@@ -62,11 +95,20 @@ function slugTitle() {
   return /[a-z]/i.test(t) && t.length > 1 ? t : null;
 }
 
+// A 4-digit year disambiguates same-name titles. Prefer the URL (…/the-batman-2022/…);
+// fall back to the page title (e.g. a YouTube trailer "… (2010) …").
+function detectedYear() {
+  const fromUrl = location.pathname.match(/\b(19|20)\d{2}\b/);
+  if (fromUrl) return Number(fromUrl[0]);
+  const fromTitle = document.title.match(/\((19|20)\d{2}\)/);
+  return fromTitle ? Number(fromTitle[0].slice(1, 5)) : undefined;
+}
+
 function detectTitle() {
   const host = location.hostname.replace(/^www\./, '');
   const key = Object.keys(detectors).find((d) => host.endsWith(d));
   const title = (key ? detectors[key]() : firstText(['h1'])) || slugTitle();
-  return title ? { title } : null;
+  return title ? { title, year: detectedYear() } : null;
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
