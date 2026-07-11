@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "CineMatch",
+  "version": "0.1.0",
+  "description": "Should you watch it? A Skip / Timepass / Go For It / Perfection verdict on any movie page, tuned to your taste.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CineMatch"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://api.adityadevhub.in/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.primevideo.com/*",
+        "*://*.jiocinema.com/*",
+        "*://*.hotstar.com/*",
+        "*://*.google.com/*",
+        "*://*.wikipedia.org/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
