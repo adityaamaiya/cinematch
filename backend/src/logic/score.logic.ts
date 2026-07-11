@@ -51,8 +51,8 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     const mediaType = movie.mediaType ?? 'movie';
     const cacheKey = `${mediaType}:${movie.tmdbId}`;
     const omdbKey = `${movie.title.toLowerCase()}|${movie.year ?? ''}`;
-    const [affinity, watch, officialTrailer, credits, omdb, onWatchlist] = await Promise.all([
-      Profile.findAffinity(input.userKey),
+    const [affinities, watch, officialTrailer, credits, omdb, onWatchlist] = await Promise.all([
+      Profile.findAffinities(input.userKey),
       this.watchCache
         .remember(`${cacheKey}:${WATCH_COUNTRY}`, () =>
           this.tmdb.watchProviders(movie.tmdbId, mediaType, WATCH_COUNTRY),
@@ -73,7 +73,14 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     // undefined → treat as released, since they carry a real rating).
     const released = movie.released !== false;
     const scored = released
-      ? await this.scorer.execute({ movie, affinity })
+      ? await this.scorer.execute({
+          movie,
+          affinity: affinities.genreAffinity,
+          director: credits.director,
+          leadActor: credits.leadActor,
+          directorAffinity: affinities.directorAffinity,
+          actorAffinity: affinities.actorAffinity,
+        })
       : { verdict: 'Skip' as const, tasteMatch: null };
 
     return {

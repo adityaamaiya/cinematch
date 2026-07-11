@@ -157,6 +157,16 @@ export type Mood = 'chill' | 'intense' | 'feelgood' | 'mindbender' | 'classic';
  */
 export type GenreAffinity = Record<string, number>;
 
+/** Same shape as GenreAffinity, but keyed by a person's name (director or actor). */
+export type PersonAffinity = Record<string, number>;
+
+/** All three taste signals derived on sync: broad (genre) + personal (director/actor). */
+export interface Affinities {
+  genreAffinity: GenreAffinity;
+  directorAffinity: PersonAffinity;
+  actorAffinity: PersonAffinity;
+}
+
 // --- Service contracts (third-party clients only) ---
 
 export interface ITmdbService {

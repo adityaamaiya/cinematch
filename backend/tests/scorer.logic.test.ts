@@ -45,7 +45,7 @@ describe('Scorer taste match (separate signal)', () => {
   });
 
   it('mild match for a mildly liked genre', async () => {
-    expect((await run(movie(6.5, ['Action']), { Action: 0.3 })).tasteMatch?.level).toBe('mild');
+    expect((await run(movie(6.5, ['Action']), { Action: 0.15 })).tasteMatch?.level).toBe('mild');
   });
 
   it('mismatch for a disliked genre', async () => {
@@ -57,7 +57,58 @@ describe('Scorer taste match (separate signal)', () => {
   });
 
   it('averages affinity across the movie genres', async () => {
-    // mean(+1.0, -0.2) = 0.4 → mild
-    expect((await run(movie(6.5, ['Action', 'Drama']), { Action: 1.0, Drama: -0.2 })).tasteMatch?.level).toBe('mild');
+    // mean(+0.2, +0.1) = 0.15 → mild (between the two inputs). Single signal, no renorm change.
+    expect((await run(movie(6.5, ['Action', 'Drama']), { Action: 0.2, Drama: 0.1 })).tasteMatch?.level).toBe('mild');
+  });
+});
+
+describe('Scorer taste match (director + actor blend)', () => {
+  // Nolan case: genres are neutral for this user, but the director is a strong favourite.
+  it('a favourite director makes a neutral-genre film land strong', async () => {
+    const m = await scorer.execute({
+      movie: movie(8.4, ['Action', 'Science Fiction']),
+      affinity: { Action: 0, 'Science Fiction': 0 }, // genre says nothing
+      director: 'Christopher Nolan',
+      leadActor: 'Leonardo DiCaprio',
+      directorAffinity: { 'Christopher Nolan': 0.9 },
+      actorAffinity: { 'Leonardo DiCaprio': 0.5 },
+    });
+    // blend = (0.35*0 + 0.45*0.9 + 0.20*0.5) / 1.0 = 0.505 → strong
+    expect(m.tasteMatch?.level).toBe('strong');
+  });
+
+  it('person maps absent → genre-only result is unchanged', async () => {
+    // Same movie, no director/actor signal: falls back to the genre mean (0) → neutral/null.
+    const withPerson = await scorer.execute({
+      movie: movie(8.4, ['Action']),
+      affinity: { Action: 0.15 },
+      director: 'Christopher Nolan',
+      leadActor: 'Leonardo DiCaprio',
+    });
+    const genreOnly = await run(movie(8.4, ['Action']), { Action: 0.15 });
+    // director/leadActor given but no affinity maps → they contribute nothing.
+    expect(withPerson.tasteMatch?.level).toBe(genreOnly.tasteMatch?.level);
+    expect(withPerson.tasteMatch?.level).toBe('mild');
+  });
+
+  it('a disliked director pulls a neutral-genre film to mismatch', async () => {
+    const m = await scorer.execute({
+      movie: movie(6.5, ['Drama']),
+      affinity: { Drama: 0 },
+      director: 'Uwe Boll',
+      directorAffinity: { 'Uwe Boll': -0.8 },
+    });
+    // blend over {genre 0.35→0, director 0.45→-0.8} = -0.8*0.45/0.8 = -0.45 → mismatch
+    expect(m.tasteMatch?.level).toBe('mismatch');
+  });
+
+  it('director not in the affinity map → that signal is skipped', async () => {
+    const m = await scorer.execute({
+      movie: movie(6.5, ['Action']),
+      affinity: { Action: 0.15 },
+      director: 'Some Unknown',
+      directorAffinity: { 'Christopher Nolan': 0.9 },
+    });
+    expect(m.tasteMatch?.level).toBe('mild'); // only the genre signal counts
   });
 });

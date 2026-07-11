@@ -1,7 +1,15 @@
 // Taste profile: rated movies, watchlist, derived genre affinity. Keyed so a fork can hold
 // several users. All DB access is via the statics below — no separate repository layer.
 import mongoose, { Schema, type Model, type HydratedDocument } from 'mongoose';
-import type { ContentType, GenreAffinity, RatedMovie, Verdict, WatchlistMovie } from '../types/index.js';
+import type {
+  Affinities,
+  ContentType,
+  GenreAffinity,
+  PersonAffinity,
+  RatedMovie,
+  Verdict,
+  WatchlistMovie,
+} from '../types/index.js';
 
 /** Default key when the deployment only tracks one person (this repo's owner). */
 export const DEFAULT_PROFILE_KEY = 'default';
@@ -12,6 +20,10 @@ export interface ProfileAttrs {
   watchlist: WatchlistMovie[];
   /** genre name → signed affinity relative to the user's mean weight. */
   genreAffinity: GenreAffinity;
+  /** director name → signed affinity (the strongest personal taste signal). */
+  directorAffinity: PersonAffinity;
+  /** lead-actor name → signed affinity. */
+  actorAffinity: PersonAffinity;
 }
 
 interface ProfileDoc extends ProfileAttrs, mongoose.Document {}
@@ -21,10 +33,12 @@ interface ProfileModel extends Model<ProfileDoc> {
   /** Insert or replace the profile + derived affinity for a user, return the saved doc. */
   upsertProfile(
     userKey: string,
-    data: { ratedMovies: RatedMovie[]; watchlist: WatchlistMovie[]; genreAffinity: GenreAffinity },
+    data: { ratedMovies: RatedMovie[]; watchlist: WatchlistMovie[] } & Affinities,
   ): Promise<HydratedDocument<ProfileDoc>>;
   /** Return the genre-affinity map for a user, or empty object if no profile exists. */
   findAffinity(userKey: string): Promise<GenreAffinity>;
+  /** Return all three affinity maps for a user; empty maps if no profile exists. */
+  findAffinities(userKey: string): Promise<Affinities>;
   /** Add a title to the watchlist (idempotent by title+year). Creates the profile if absent. */
   addToWatchlist(userKey: string, item: WatchlistMovie): Promise<void>;
   /** Remove a title from the watchlist by title+year. */
@@ -63,8 +77,10 @@ const profileSchema = new Schema<ProfileDoc, ProfileModel>(
     userKey: { type: String, required: true, unique: true, index: true },
     ratedMovies: { type: [ratedMovieSchema], default: [] },
     watchlist: { type: [watchlistMovieSchema], default: [] },
-    // Object of genre → number. Mongoose stores this as a plain subdocument.
+    // Objects of name → number. Mongoose stores these as plain subdocuments.
     genreAffinity: { type: Schema.Types.Mixed, default: {} },
+    directorAffinity: { type: Schema.Types.Mixed, default: {} },
+    actorAffinity: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },
 );
@@ -80,6 +96,20 @@ profileSchema.static('upsertProfile', function upsertProfile(this: ProfileModel,
 profileSchema.static('findAffinity', async function findAffinity(this: ProfileModel, userKey) {
   const doc = await this.findOne({ userKey }, { genreAffinity: 1 }).lean().exec();
   return (doc?.genreAffinity as GenreAffinity | undefined) ?? {};
+});
+
+profileSchema.static('findAffinities', async function findAffinities(this: ProfileModel, userKey) {
+  const doc = await this.findOne(
+    { userKey },
+    { genreAffinity: 1, directorAffinity: 1, actorAffinity: 1 },
+  )
+    .lean()
+    .exec();
+  return {
+    genreAffinity: (doc?.genreAffinity as GenreAffinity | undefined) ?? {},
+    directorAffinity: (doc?.directorAffinity as PersonAffinity | undefined) ?? {},
+    actorAffinity: (doc?.actorAffinity as PersonAffinity | undefined) ?? {},
+  };
 });
 
 profileSchema.static(

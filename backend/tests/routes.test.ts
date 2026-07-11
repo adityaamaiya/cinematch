@@ -44,6 +44,11 @@ beforeEach(() => {
   vi.spyOn(ScoreCache, 'get').mockResolvedValue(undefined);
   vi.spyOn(ScoreCache, 'put').mockResolvedValue(undefined);
   vi.spyOn(Profile, 'findAffinity').mockResolvedValue({});
+  vi.spyOn(Profile, 'findAffinities').mockResolvedValue({
+    genreAffinity: {},
+    directorAffinity: {},
+    actorAffinity: {},
+  });
   vi.spyOn(Profile, 'upsertProfile').mockResolvedValue({} as never);
   vi.spyOn(Profile, 'isOnWatchlist').mockResolvedValue(false);
 });

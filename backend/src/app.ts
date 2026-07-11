@@ -42,7 +42,7 @@ export function createApp(deps: AppDeps): Express {
   const lookup = new MovieLookup(deps.tmdb, logger);
   const scoreController = new ScoreController(new ScoreLogic(lookup, scorer, deps.tmdb, deps.omdb));
   const recommendController = new RecommendController(new RecommendLogic(deps.tmdb, scorer));
-  const profileController = new ProfileController(new SyncProfileLogic(lookup));
+  const profileController = new ProfileController(new SyncProfileLogic(lookup, deps.tmdb));
   const watchlistController = new WatchlistController(new WatchlistLogic(lookup, scorer, deps.tmdb));
 
   // --- routes ---
