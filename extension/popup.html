@@ -43,13 +43,30 @@
       * { box-sizing: border-box; }
       body {
         width: 460px;
+        height: 600px;
         margin: 0;
         padding: 18px;
         background: var(--bg);
         color: var(--fg);
         font: 14px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        /* Fixed-height popup: header + hero stay put, everything below scrolls (see #view / .hero). */
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
       }
-      .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+      /* The scroll region. Header sits above it (always visible); the hero inside it is sticky. */
+      #view {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: none; /* Firefox */
+      }
+      #view::-webkit-scrollbar { width: 0; height: 0; display: none; } /* Chrome — hide track + thumb */
+      .header {
+        display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+        position: relative; z-index: 3; background: var(--bg); /* opaque + above the sticky hero */
+      }
       h1 { font-size: 18px; margin: 0; font-weight: 600; }
       .icon-btn {
         background: var(--surface); border: 1px solid var(--line); color: var(--fg);
@@ -59,8 +76,14 @@
       .icon-btn:hover { background: var(--surface-2); }
       .muted { color: var(--muted); }
       .center { text-align: center; }
-      /* Two-column hero: poster on the left, meter + title on the right. */
-      .hero { display: flex; align-items: center; gap: 16px; }
+      /* Two-column hero: poster on the left, meter + title on the right. Pinned to the top of #view
+         so the poster + verdict stay visible while the details below scroll. */
+      .hero {
+        display: flex; align-items: center; gap: 16px;
+        position: sticky; top: 0; z-index: 2;
+        background: var(--bg); padding-bottom: 12px; margin-bottom: 2px;
+        border-bottom: 1px solid var(--line);
+      }
       .hero-main { flex: 1; min-width: 0; text-align: center; }
       #gauge { display: block; margin: 0 auto; max-width: 100%; }
       .poster { display: block; width: 150px; flex: 0 0 auto; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
