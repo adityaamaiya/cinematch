@@ -1,7 +1,14 @@
 // Score every title on the user's watchlist and rank it by taste match, so the top of the backlog
-// is the stuff most their-taste. Reuses MovieLookup (cached TMDB) + Scorer.
-import type { ILogic, TasteMatchLevel, WatchlistScored } from '../types/index.js';
+// is the stuff most their-taste. Reuses MovieLookup (cached TMDB) + Scorer, and adds the director.
+import type {
+  ILogic,
+  ITmdbService,
+  MovieCredits,
+  TasteMatchLevel,
+  WatchlistScored,
+} from '../types/index.js';
 import { Profile } from '../models/profile.model.js';
+import { TtlCache } from '../lib/ttlCache.js';
 import type { MovieLookup } from './movieLookup.js';
 import type { Scorer } from './scorer.logic.js';
 
@@ -14,9 +21,12 @@ const LEVEL_RANK: Record<TasteMatchLevel, number> = { strong: 3, mild: 2, mismat
 const rankOf = (level: TasteMatchLevel | undefined) => (level ? LEVEL_RANK[level] : 1);
 
 export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistScored[]> {
+  private readonly creditsCache = new TtlCache<MovieCredits>(6 * 60 * 60 * 1000);
+
   constructor(
     private readonly lookup: MovieLookup,
     private readonly scorer: Scorer,
+    private readonly tmdb: ITmdbService,
   ) {}
 
   async execute({ userKey }: WatchlistInput): Promise<WatchlistScored[]> {
@@ -29,7 +39,15 @@ export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistScored[]>
       items.map(async (item): Promise<WatchlistScored | null> => {
         const movie = await this.lookup.execute({ title: item.title, year: item.year });
         if (!movie) return null;
-        const { verdict, tasteMatch } = await this.scorer.execute({ movie, affinity });
+        const mediaType = movie.mediaType ?? 'movie';
+        // Unreleased titles have no real rating → no verdict (list shows "Upcoming").
+        const released = movie.released !== false;
+        const { verdict, tasteMatch } = released
+          ? await this.scorer.execute({ movie, affinity })
+          : { verdict: 'Skip' as const, tasteMatch: null };
+        const credits = await this.creditsCache
+          .remember(`${mediaType}:${movie.tmdbId}`, () => this.tmdb.credits(movie.tmdbId, mediaType))
+          .catch((): MovieCredits => ({}));
         return {
           title: item.title,
           year: item.year,
@@ -38,6 +56,8 @@ export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistScored[]>
           tmdbRating: movie.rating,
           tasteMatch,
           posterUrl: movie.posterUrl,
+          director: credits.director,
+          released,
         };
       }),
     );

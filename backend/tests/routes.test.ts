@@ -45,6 +45,7 @@ beforeEach(() => {
   vi.spyOn(ScoreCache, 'put').mockResolvedValue(undefined);
   vi.spyOn(Profile, 'findAffinity').mockResolvedValue({});
   vi.spyOn(Profile, 'upsertProfile').mockResolvedValue({} as never);
+  vi.spyOn(Profile, 'isOnWatchlist').mockResolvedValue(false);
 });
 afterEach(() => vi.restoreAllMocks());
 

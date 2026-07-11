@@ -17,6 +17,30 @@ async function backendUrl() {
   return backendUrl || DEFAULT_BACKEND;
 }
 
+// --- Theme: auto (prefers-color-scheme) by default, with a persistent toggle ---
+function effectiveTheme() {
+  return (
+    document.documentElement.dataset.theme ||
+    (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+  );
+}
+function setThemeIcon() {
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = effectiveTheme() === 'light' ? '☀️' : '🌙';
+}
+async function initTheme() {
+  const { theme } = await chrome.storage.local.get('theme');
+  if (theme) document.documentElement.dataset.theme = theme; // else stays auto
+  setThemeIcon();
+  document.getElementById('theme-toggle')?.addEventListener('click', async () => {
+    const next = effectiveTheme() === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    setThemeIcon();
+    await chrome.storage.local.set({ theme: next });
+  });
+}
+initTheme();
+
 function color(verdict) {
   return `var(${VERDICT_VAR[verdict] || '--muted'})`;
 }
@@ -93,10 +117,13 @@ function titleLine(data) {
   return `<div class="rating">${escapeHtml(data.title)}${data.year ? ` · ${data.year}` : ''}</div>`;
 }
 
-// Director · lead actor, when available.
+// Highlighted director + lead actor block.
 function creditsHtml(data) {
-  const bits = [data.director, data.leadActor].filter(Boolean).map(escapeHtml);
-  return bits.length ? `<div class="credits">${bits.join(' · ')}</div>` : '';
+  const rows = [
+    data.director ? `<div class="cr"><span class="cr-k">🎬 Director</span><span class="cr-v">${escapeHtml(data.director)}</span></div>` : '',
+    data.leadActor ? `<div class="cr"><span class="cr-k">🎭 Lead</span><span class="cr-v">${escapeHtml(data.leadActor)}</span></div>` : '',
+  ].join('');
+  return rows ? `<div class="credits">${rows}</div>` : '';
 }
 
 function awardsHtml(data) {
@@ -111,20 +138,23 @@ function ratingsLine(data) {
 
 function watchlistBtnHtml(data) {
   return `<button class="wl-add" data-title="${escapeHtml(data.title)}"
-    data-year="${data.year ?? ''}" data-type="${escapeHtml(data.type || 'Movie')}">＋ Add to watchlist</button>`;
+      data-year="${data.year ?? ''}" data-type="${escapeHtml(data.type || 'Movie')}">＋ Add to watchlist</button>
+    <button class="ghost" id="score-mylist">📋 My watchlist</button>`;
 }
 
 function renderScore(data) {
   // Not released yet → no verdict (no rating exists); show the date instead.
   if (data.released === false) {
     view.innerHTML = `
-      <div class="center">
+      <div class="hero">
         ${posterHtml(data.posterUrl)}
-        <div class="verdict" style="color:var(--muted)">Not out yet</div>
-        ${titleLine(data)}
-        ${data.releaseDate ? `<div class="rating">🍿 Releases ${escapeHtml(data.releaseDate)}</div>` : ''}
-        ${creditsHtml(data)}
+        <div class="hero-main">
+          <div class="verdict" style="color:var(--muted)">Not out yet</div>
+          ${titleLine(data)}
+          ${data.releaseDate ? `<div class="rating">🍿 Releases ${escapeHtml(data.releaseDate)}</div>` : ''}
+        </div>
       </div>
+      ${creditsHtml(data)}
       ${trailerHtml(data.trailerUrl)}
       ${watchlistBtnHtml(data)}`;
     bindWatchlistAdd();
@@ -135,14 +165,16 @@ function renderScore(data) {
     ? `<div class="taste" style="color:${color(data.verdict)}">${data.tasteMatch.message}</div>`
     : '';
   view.innerHTML = `
-    <div class="center">
+    <div class="hero">
       ${posterHtml(data.posterUrl)}
-      ${gaugeSvg(data.tmdbRating, data.verdict)}
-      <div class="verdict" style="color:${color(data.verdict)}">${data.verdict}</div>
-      ${titleLine(data)}
-      ${ratingsLine(data)}
-      ${creditsHtml(data)}
+      <div class="hero-main">
+        ${gaugeSvg(data.tmdbRating, data.verdict)}
+        <div class="verdict" style="color:${color(data.verdict)}">${data.verdict}</div>
+        ${titleLine(data)}
+        ${ratingsLine(data)}
+      </div>
     </div>
+    ${creditsHtml(data)}
     ${taste}
     ${awardsHtml(data)}
     ${legendHtml()}
@@ -154,6 +186,15 @@ function renderScore(data) {
 
 function bindWatchlistAdd() {
   const btn = view.querySelector('.wl-add');
+  const myList = view.querySelector('#score-mylist');
+  if (myList) {
+    // Back from the list returns to this movie (re-score it), not the search box.
+    myList.addEventListener('click', () => {
+      const title = btn?.dataset.title;
+      const year = btn?.dataset.year ? Number(btn.dataset.year) : undefined;
+      renderWatchlist(title ? () => scoreTitle(title, year) : undefined);
+    });
+  }
   if (!btn) return;
   btn.addEventListener('click', async () => {
     btn.disabled = true;
@@ -202,7 +243,9 @@ function renderManual(message) {
 }
 
 // "My list": the watchlist, scored + taste-ranked. Click an item to re-score it, ✕ to remove.
-async function renderWatchlist() {
+// `back` returns to wherever you opened it from (the movie you were on, or the search view).
+async function renderWatchlist(back) {
+  const goBack = typeof back === 'function' ? back : () => renderManual();
   view.innerHTML = `<p class="muted center">Loading your watchlist…</p>`;
   try {
     const res = await fetch(`${await backendUrl()}/watchlist`);
@@ -222,7 +265,7 @@ async function renderWatchlist() {
       : `<p class="muted center">Your watchlist is empty. Add titles from any movie page.</p>`;
     view.innerHTML = `<button class="ghost" id="wl-back">← Back</button><div id="recs">${list}</div>`;
 
-    document.getElementById('wl-back').addEventListener('click', () => renderManual());
+    document.getElementById('wl-back').addEventListener('click', goBack);
     view.querySelectorAll('.rec').forEach((el) => {
       const title = el.dataset.title;
       const year = el.dataset.year ? Number(el.dataset.year) : undefined;

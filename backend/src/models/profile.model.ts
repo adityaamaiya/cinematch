@@ -31,6 +31,8 @@ interface ProfileModel extends Model<ProfileDoc> {
   removeFromWatchlist(userKey: string, title: string, year?: number): Promise<void>;
   /** Return the user's watchlist (newest first), or [] if no profile. */
   getWatchlist(userKey: string): Promise<WatchlistMovie[]>;
+  /** True when title+year is already on the user's watchlist. */
+  isOnWatchlist(userKey: string, title: string, year?: number): Promise<boolean>;
 }
 
 const CONTENT_TYPES: ContentType[] = ['Movie', 'Show', 'Anime'];
@@ -101,5 +103,16 @@ profileSchema.static('getWatchlist', async function getWatchlist(this: ProfileMo
   const doc = await this.findOne({ userKey }, { watchlist: 1 }).lean().exec();
   return (doc?.watchlist as WatchlistMovie[] | undefined) ?? [];
 });
+
+profileSchema.static(
+  'isOnWatchlist',
+  async function isOnWatchlist(this: ProfileModel, userKey, title: string, year?: number) {
+    const doc = await this.exists({
+      userKey,
+      watchlist: { $elemMatch: { title, year: year ?? null } },
+    });
+    return !!doc;
+  },
+);
 
 export const Profile = mongoose.model<ProfileDoc, ProfileModel>('Profile', profileSchema);

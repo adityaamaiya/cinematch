@@ -43,7 +43,7 @@ export function createApp(deps: AppDeps): Express {
   const scoreController = new ScoreController(new ScoreLogic(lookup, scorer, deps.tmdb, deps.omdb));
   const recommendController = new RecommendController(new RecommendLogic(deps.tmdb, scorer));
   const profileController = new ProfileController(new SyncProfileLogic(lookup));
-  const watchlistController = new WatchlistController(new WatchlistLogic(lookup, scorer));
+  const watchlistController = new WatchlistController(new WatchlistLogic(lookup, scorer, deps.tmdb));
 
   // --- routes ---
   app.use(healthRouter());

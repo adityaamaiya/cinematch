@@ -121,6 +121,8 @@ export interface ScoreResult {
   released: boolean;
   /** Release date (YYYY-MM-DD) if known. */
   releaseDate?: string;
+  /** True when this title is already on the user's watchlist. */
+  onWatchlist: boolean;
 }
 
 /** A single recommendation (grid-page fallback). */
@@ -141,6 +143,9 @@ export interface WatchlistScored {
   tmdbRating: number;
   tasteMatch: TasteMatch | null;
   posterUrl?: string;
+  director?: string;
+  /** False when the title isn't out yet — the list shows "Upcoming" instead of a verdict. */
+  released: boolean;
 }
 
 /** Mood buckets the extension can pick from; each maps to TMDB genres. */

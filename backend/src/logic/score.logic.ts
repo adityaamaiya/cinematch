@@ -51,7 +51,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     const mediaType = movie.mediaType ?? 'movie';
     const cacheKey = `${mediaType}:${movie.tmdbId}`;
     const omdbKey = `${movie.title.toLowerCase()}|${movie.year ?? ''}`;
-    const [affinity, watch, officialTrailer, credits, omdb] = await Promise.all([
+    const [affinity, watch, officialTrailer, credits, omdb, onWatchlist] = await Promise.all([
       Profile.findAffinity(input.userKey),
       this.watchCache
         .remember(`${cacheKey}:${WATCH_COUNTRY}`, () =>
@@ -65,6 +65,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
         .remember(cacheKey, () => this.tmdb.credits(movie.tmdbId, mediaType))
         .catch((): MovieCredits => ({})),
       this.omdbCache.remember(omdbKey, () => this.omdb.lookup(movie.title, movie.year)).catch(() => null),
+      Profile.isOnWatchlist(input.userKey, movie.title, movie.year).catch(() => false),
     ]);
 
     // Unreleased titles have no real rating yet → no verdict/taste; the popup shows the date instead.
@@ -90,6 +91,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       imdbRating: omdb?.imdbRating,
       released,
       releaseDate: movie.releaseDate,
+      onWatchlist,
     };
   }
 }

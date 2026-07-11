@@ -36,7 +36,7 @@ const SCORE = {
 const CHROME_STUB = `
   window.chrome = {
     runtime: {},
-    storage: { local: { get: () => Promise.resolve({}) } },
+    storage: { local: { get: () => Promise.resolve({}), set: () => Promise.resolve() } },
     tabs: {
       query: () => Promise.resolve([{ id: 1 }]),
       sendMessage: (_id, _msg, cb) => cb({ title: 'Inception' }),
@@ -75,6 +75,14 @@ async function main() {
   assert.ok(credits.includes('Christopher Nolan') && credits.includes('Leonardo DiCaprio'), 'credits render');
   assert.ok((await page.locator('.awards').innerText()).includes('Oscars'), 'awards render');
   assert.ok(await page.locator('.wl-add').count(), 'add-to-watchlist button renders');
+
+  // Theme tokens swap the palette (dark vs light give different backgrounds).
+  const bgFor = (t) =>
+    page.evaluate((theme) => {
+      document.documentElement.dataset.theme = theme;
+      return getComputedStyle(document.body).backgroundColor;
+    }, t);
+  assert.notStrictEqual(await bgFor('dark'), await bgFor('light'), 'theme changes the background');
 
   await browser.close();
   console.log('✓ popup e2e passed: gauge, verdict, trailer, provider, taste, poster, credits, awards, watchlist');
