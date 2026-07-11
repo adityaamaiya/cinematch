@@ -30,7 +30,9 @@ const detectors = {
     /\/detail\//.test(location.pathname) ? firstText(['h1[data-automation-id="title"]', 'h1']) : null,
 
   'jiocinema.com': () => firstText(['h1']),
-  'hotstar.com': () => firstText(['h1']),
+  // Hotstar opens titles in a modal over the grid, and its <h1> is site branding ("JioHotstar"),
+  // so the URL slug (/in/shows/pritam-and-pedro/…) is the reliable source.
+  'hotstar.com': () => slugTitle() || firstText(['h1']),
 
   'wikipedia.org': () => {
     // Article pages are reliable; not the search/portal.
