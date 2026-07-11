@@ -41,10 +41,15 @@ const LANGUAGE_MIN_COUNT = 3;
 export function rankLanguages(films: RatedSignals[]): string[] {
   const counts: Record<string, number> = {};
   for (const f of films) if (f.language) counts[f.language] = (counts[f.language] ?? 0) + 1;
-  return Object.entries(counts)
+  const ranked = Object.entries(counts)
     .filter(([, n]) => n >= LANGUAGE_MIN_COUNT)
     .sort((a, b) => b[1] - a[1])
     .map(([lang]) => lang);
+  // Demote English to the back: TMDB popularity already skews toward English/Hollywood, so for a
+  // same-name tie we want the user's regional languages to win first; English still beats a wholly
+  // unlisted language, and a genuinely English title resolves via popularity anyway.
+  const nonEn = ranked.filter((l) => l !== 'en');
+  return nonEn.length < ranked.length ? [...nonEn, 'en'] : ranked;
 }
 
 // Affinity = per-key mean verdict-weight minus the user's overall mean (relative preference, to

@@ -34,15 +34,23 @@ describe('buildAffinities', () => {
 describe('rankLanguages', () => {
   const film = (language?: string): RatedSignals => ({ weight: 4, genres: [], language });
 
-  it('orders languages by count, dropping those below the min (3)', () => {
+  it('orders by count but demotes English to the back (popularity already favors it)', () => {
     const films = [
+      ...Array(6).fill(0).map(() => film('en')), // most-watched, but demoted
       ...Array(5).fill(0).map(() => film('hi')),
-      ...Array(4).fill(0).map(() => film('en')),
       ...Array(3).fill(0).map(() => film('ta')),
       film('ko'), // only 1 → dropped
       film(undefined), // no language → ignored
     ];
-    expect(rankLanguages(films)).toEqual(['hi', 'en', 'ta']);
+    expect(rankLanguages(films)).toEqual(['hi', 'ta', 'en']);
+  });
+
+  it('leaves the order alone when there is no English', () => {
+    const films = [
+      ...Array(5).fill(0).map(() => film('hi')),
+      ...Array(3).fill(0).map(() => film('ta')),
+    ];
+    expect(rankLanguages(films)).toEqual(['hi', 'ta']);
   });
 
   it('returns [] when nothing clears the min count', () => {
