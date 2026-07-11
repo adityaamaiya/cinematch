@@ -4,6 +4,7 @@ import express, { type Express } from 'express';
 import type { ILogger, ITmdbService } from './types/index.js';
 import { Logger } from './lib/logger.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
+import { rateLimit } from './middleware/rateLimit.middleware.js';
 import { healthRouter } from './routes/health.router.js';
 import { scoreRouter } from './routes/score.router.js';
 import { recommendRouter } from './routes/recommend.router.js';
@@ -26,7 +27,11 @@ export interface AppDeps {
 export function createApp(deps: AppDeps): Express {
   const logger = deps.logger ?? new Logger('http');
   const app = express();
+  app.set('trust proxy', 1); // nginx is one hop in front — use X-Forwarded-For for req.ip
   app.use(express.json({ limit: '2mb' })); // profile syncs can be largish
+
+  // Throttle the public TMDB-backed endpoints per IP (protects the shared TMDB quota).
+  const publicLimiter = rateLimit({ windowMs: 60_000, max: 60 });
 
   // --- wire dependencies (interface → concrete, one place) ---
   const scorer = new Scorer();
@@ -37,8 +42,8 @@ export function createApp(deps: AppDeps): Express {
 
   // --- routes ---
   app.use(healthRouter());
-  app.use(scoreRouter(scoreController.score));
-  app.use(recommendRouter(recommendController.recommend));
+  app.use(publicLimiter, scoreRouter(scoreController.score));
+  app.use(publicLimiter, recommendRouter(recommendController.recommend));
   app.use(profileRouter(profileController.syncProfile, deps.syncToken));
 
   // --- fallthrough ---

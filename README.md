@@ -111,16 +111,16 @@ Real `.env` files are gitignored; commit only `.env.example`.
 
 ## Supplying a taste profile
 
-Three ways, all hitting `POST /sync-profile` (Bearer `SYNC_TOKEN`):
+All paths hit `POST /sync-profile` (Bearer `SYNC_TOKEN`) with `{ ratedMovies, watchlist }`:
 1. **None** — the extension still works; you get objective verdicts, no taste line.
-2. **Seed a JSON file** — edit `backend/profile.example.json` (records of `{title, type, year, verdict}`) and run `cd backend && npm run seed`.
-3. **Moctale scraper** — `cd scraper && npm run scrape`.
+2. **Seed a JSON file (recommended)** — put your ratings as `{title, type, year, verdict}` records in
+   `backend/profile.example.json` and run `cd backend && npm run seed`.
+3. **Import from a source you own** — `backend/scripts/moctale-to-profile.ts` shows how to convert an
+   exported ratings dump into the seed shape. Adapt it to whatever site/export you use.
 
-### Moctale login (Cloudflare)
-Moctale's login has a Cloudflare human check, so the scraper can't log in headlessly. It opens a **real
-browser**; you log in once (username/phone + password + the check). The session is saved in
-`scraper/.moctale-session/` and reused, so later runs scrape straight away. **No credentials are stored.**
-If selectors ever return 0 rows: `npm run scrape -- --dump` saves the live HTML to tune them.
+A Playwright scraper lives in `scraper/` as a reference for session-based sources, but sites behind
+an interactive bot check (e.g. Cloudflare managed challenge) can't be scraped headlessly — export your
+data in the browser and seed it instead.
 
 ## API
 
@@ -135,14 +135,16 @@ All responses use `{ success, data?, error? }`.
 
 ## Deploy
 
-Full walk-through in **[docs/DEPLOY.md](docs/DEPLOY.md)** — MongoDB Atlas + AWS EC2 free tier + Nginx +
-Let's Encrypt HTTPS at `https://cinematch.adityadevhub.in`, with GitHub Actions auto-deploy on merge to `main`.
-After deploying, set `DEFAULT_BACKEND` in `extension/popup.js` to your API URL.
+Runs anywhere Node runs. A typical setup: **MongoDB Atlas** (free M0) + a small VM (e.g. AWS EC2
+free tier) behind **Nginx** with a **Let's Encrypt** cert, plus the included GitHub Actions workflow
+([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) that runs tests and redeploys over SSH
+on push to `main`. Set these repo secrets for auto-deploy: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`.
+After deploying, point `DEFAULT_BACKEND` in [extension/popup.js](extension/popup.js) at your API URL.
 
 ## Fork it
 
-CineMatch isn't tied to one account. Fork, set your own `.env`, and either seed your ratings as JSON or
-adapt the scraper to your source — the backend and the profile API stay the same.
+CineMatch isn't tied to any one account. Fork, set your own `.env`, and either seed your ratings as
+JSON or adapt the importer to your source — the backend and the profile API stay the same.
 
 ## Tech
 

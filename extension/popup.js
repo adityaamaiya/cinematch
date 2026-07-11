@@ -147,10 +147,22 @@ async function recommend(mood) {
     if (!body.success) throw new Error(body.error?.message || 'Request failed');
     recs.innerHTML = body.data
       .map(
-        (r) => `<div class="rec"><span>${escapeHtml(r.title)}</span>
+        (r) => `<div class="rec" role="button" tabindex="0" data-title="${escapeHtml(r.title)}">
+          <span>${escapeHtml(r.title)}</span>
           <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${r.verdict}</span></div>`,
       )
       .join('');
+    // Click / Enter a pick → score it.
+    recs.querySelectorAll('.rec').forEach((el) => {
+      const go = () => scoreTitle(el.dataset.title);
+      el.addEventListener('click', go);
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          go();
+        }
+      });
+    });
   } catch (err) {
     recs.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
   }

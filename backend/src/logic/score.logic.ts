@@ -1,6 +1,7 @@
 import type { ILogic, ITmdbService, ScoreResult, WatchInfo } from '../types/index.js';
 import { AppError } from '../lib/errors.js';
 import { Profile } from '../models/profile.model.js';
+import { TtlCache } from '../lib/ttlCache.js';
 import type { MovieLookup } from './movieLookup.js';
 import type { Scorer } from './scorer.logic.js';
 
@@ -12,8 +13,13 @@ export interface ScoreInput {
 
 // ponytail: single country for now (user is in India); make it a request/env param if needed.
 const WATCH_COUNTRY = 'IN';
+// Where-to-watch drifts (a title leaves Netflix); trailers don't. 6h is a fine freshness/quota trade.
+const EXTRAS_TTL_MS = 6 * 60 * 60 * 1000;
 
 export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
+  private readonly watchCache = new TtlCache<WatchInfo | null>(EXTRAS_TTL_MS);
+  private readonly trailerCache = new TtlCache<string | undefined>(EXTRAS_TTL_MS);
+
   constructor(
     private readonly lookup: MovieLookup,
     private readonly scorer: Scorer,
@@ -24,13 +30,20 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     const movie = await this.lookup.execute({ title: input.title, year: input.year });
     if (!movie) throw AppError.notFound(`No TMDB match for "${input.title}"`, 'MOVIE_NOT_FOUND');
 
-    // Verdict/taste are core; where-to-watch + trailer are extras that must never break a score.
+    // Verdict/taste are core; where-to-watch + trailer are cached extras that must never break a score.
     // Default mediaType for entries cached before it existed (and defensively for odd search hits).
     const mediaType = movie.mediaType ?? 'movie';
+    const cacheKey = `${mediaType}:${movie.tmdbId}`;
     const [affinity, watch, trailerUrl] = await Promise.all([
       Profile.findAffinity(input.userKey),
-      this.tmdb.watchProviders(movie.tmdbId, mediaType, WATCH_COUNTRY).catch(() => null),
-      this.tmdb.trailerUrl(movie.tmdbId, mediaType).catch(() => undefined),
+      this.watchCache
+        .remember(`${cacheKey}:${WATCH_COUNTRY}`, () =>
+          this.tmdb.watchProviders(movie.tmdbId, mediaType, WATCH_COUNTRY),
+        )
+        .catch(() => null),
+      this.trailerCache
+        .remember(cacheKey, () => this.tmdb.trailerUrl(movie.tmdbId, mediaType))
+        .catch(() => undefined),
     ]);
     const scored = await this.scorer.execute({ movie, affinity });
 
