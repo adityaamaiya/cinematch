@@ -12,6 +12,18 @@ function clean(text) {
     .trim();
 }
 
+// Prime Video puts the title in the document title: "Prime Video: Mr. Robot - Season 1".
+function fromPrimeTitle(docTitle) {
+  const t = clean(String(docTitle || '').replace(/^Prime Video:\s*/i, '').replace(/\s*[-–]\s*Season\s+\d+.*$/i, ''));
+  return t && t.length > 1 ? t : null;
+}
+
+// Reject URL-id slugs (e.g. Prime's "0L52QDYY6OG738LB7ILP0VB7R4"): a single long token with a digit
+// and no spaces is an id, not a title.
+function looksLikeId(s) {
+  return !/\s/.test(s) && /\d/.test(s) && s.length >= 8;
+}
+
 function firstText(selectors) {
   for (const sel of selectors) {
     const el = document.querySelector(sel);
@@ -28,8 +40,12 @@ const detectors = {
       ? firstText(['[data-uia="video-title"]', '.title-title', 'h1'])
       : null,
 
-  'primevideo.com': () =>
-    /\/detail\//.test(location.pathname) ? firstText(['h1[data-automation-id="title"]', 'h1']) : null,
+  'primevideo.com': () => {
+    if (!/\/detail\//.test(location.pathname)) return null;
+    // Prime's title heading is unreliable/absent; it reliably lives in <title>:
+    // "Prime Video: Mr. Robot - Season 1" → "Mr. Robot".
+    return firstText(['h1[data-automation-id="title"]', 'h1']) || fromPrimeTitle(document.title);
+  },
 
   'jiocinema.com': () => firstText(['h1']),
   // Hotstar opens titles in a modal over the grid, and its <h1> is site branding ("JioHotstar"),
@@ -94,7 +110,7 @@ function slugTitle() {
   const cand = segs[segs.length - 1]; // slug usually sits right before the numeric id
   if (!cand) return null;
   const t = clean(decodeURIComponent(cand).replace(/[-_]+/g, ' ').replace(/\s+\d{3,}$/, ''));
-  return /[a-z]/i.test(t) && t.length > 1 ? t : null;
+  return /[a-z]/i.test(t) && t.length > 1 && !looksLikeId(t) ? t : null;
 }
 
 // Generic fallback for sites we have no detector for: the Open Graph / Twitter-card title. Far more
@@ -149,5 +165,5 @@ if (
 
 // Export the pure helpers for unit tests (no-op in the browser, where `module` is undefined).
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { movieFromVideoTitle, clean };
+  module.exports = { movieFromVideoTitle, clean, fromPrimeTitle, looksLikeId };
 }

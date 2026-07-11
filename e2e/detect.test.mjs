@@ -5,7 +5,7 @@ import assert from 'node:assert';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { movieFromVideoTitle, clean } = require('../extension/content.js');
+const { movieFromVideoTitle, clean, fromPrimeTitle, looksLikeId } = require('../extension/content.js');
 
 test('movieFromVideoTitle strips trailer/clip cruft to the film name', () => {
   const cases = [
@@ -34,4 +34,17 @@ test('clean strips Wikipedia disambiguation + year suffixes', () => {
   for (const [input, want] of cases) {
     assert.strictEqual(clean(input), want, `"${input}"`);
   }
+});
+
+test('fromPrimeTitle pulls the title out of the Prime <title>', () => {
+  assert.strictEqual(fromPrimeTitle('Prime Video: Mr. Robot - Season 1'), 'Mr. Robot');
+  assert.strictEqual(fromPrimeTitle('Prime Video: The Boys - Season 4'), 'The Boys');
+  assert.strictEqual(fromPrimeTitle('Prime Video: Oppenheimer'), 'Oppenheimer');
+});
+
+test('looksLikeId flags URL ids, not real titles', () => {
+  assert.ok(looksLikeId('0L52QDYY6OG738LB7ILP0VB7R4'));
+  assert.ok(!looksLikeId('the batman 2022'));
+  assert.ok(!looksLikeId('interstellar'));
+  assert.ok(!looksLikeId('1917')); // short → not treated as an id here
 });
