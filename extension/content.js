@@ -44,10 +44,26 @@ const detectors = {
   },
 };
 
+// Fallback: derive a title from the URL slug. Works when the title opens in a modal (Hotstar) or
+// the DOM heuristic misses — detail URLs usually carry the title, e.g.
+// hotstar.com/in/movies/kalki-2898-ad/1260124793 → "kalki 2898 ad".
+function slugTitle() {
+  const drop = /^(in|en|us|uk|watch|title|detail|video|movie|movies|show|shows|tv|series|sports|browse|home|wiki)$/i;
+  const segs = location.pathname
+    .split('/')
+    .filter(Boolean)
+    .filter((s) => !/^\d+$/.test(s)) // drop pure-id segments
+    .filter((s) => !drop.test(s));
+  const cand = segs[segs.length - 1]; // slug usually sits right before the numeric id
+  if (!cand) return null;
+  const t = clean(decodeURIComponent(cand).replace(/[-_]+/g, ' ').replace(/\s+\d{3,}$/, ''));
+  return /[a-z]/i.test(t) && t.length > 1 ? t : null;
+}
+
 function detectTitle() {
   const host = location.hostname.replace(/^www\./, '');
   const key = Object.keys(detectors).find((d) => host.endsWith(d));
-  const title = key ? detectors[key]() : firstText(['h1']);
+  const title = (key ? detectors[key]() : firstText(['h1'])) || slugTitle();
   return title ? { title } : null;
 }
 
