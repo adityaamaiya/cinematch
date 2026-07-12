@@ -85,7 +85,11 @@
         border-bottom: 1px solid var(--line);
       }
       .hero-main { flex: 1; min-width: 0; text-align: center; }
-      .score-num { font-size: 58px; font-weight: 800; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+      /* Half-donut gauge arching over the rating number + verdict, both nested in its well. */
+      .score-gauge { position: relative; width: 220px; height: 124px; margin: 0 auto; }
+      .gauge-svg { display: block; }
+      .gauge-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 8px; }
+      .score-num { font-size: 46px; font-weight: 800; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
       .poster { display: block; width: 150px; flex: 0 0 auto; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
       .verdict { font-size: 26px; font-weight: 700; margin-top: 2px; }
       .rating { color: var(--muted); font-size: 13px; margin-top: 2px; }
@@ -96,42 +100,37 @@
       .cr-v { color: var(--fg); font-weight: 600; text-align: right; }
       .awards { font-size: 12.5px; margin: 10px 0 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface); color: var(--awards-fg); line-height: 1.35; }
       /* Taste line has its OWN vibe palette, deliberately distinct from the verdict colours.
-         strong = loud filled gradient, mild = tinted outline, mismatch = quiet slate. */
+         meter card: emoji chip + "NN% match" + why, with a thin accent fill-bar = match %.
+         Accent colour per level (strong rose, mild sky, mismatch amber) — never a loud fill. */
       .taste {
         position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        gap: 11px;
         margin: 12px 0 4px;
-        padding: 9px 12px;
-        border-radius: 10px;
-        border: 1px solid transparent;
-        text-align: center;
-        font-weight: 700;
-        letter-spacing: .01em;
+        padding: 11px 13px 14px;
+        border-radius: 12px;
+        background: var(--surface);
+        border: 1px solid var(--t-line);
       }
+      .taste.strong { --t: #f43f5e; --t-tint: rgba(244, 63, 94, .14); --t-line: rgba(244, 63, 94, .4); }
+      .taste.mild { --t: #38bdf8; --t-tint: rgba(56, 189, 248, .14); --t-line: rgba(56, 189, 248, .4); }
+      .taste.mismatch { --t: #fb923c; --t-tint: rgba(251, 146, 60, .14); --t-line: rgba(251, 146, 60, .4); }
+      .taste-ico {
+        flex: 0 0 auto;
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        display: grid; place-items: center;
+        font-size: 18px;
+        background: var(--t-tint);
+      }
+      .taste-txt { min-width: 0; text-align: left; }
+      .taste-head { font-weight: 800; font-size: 15px; color: var(--t); line-height: 1.1; }
+      .taste-why { font-size: 12.5px; color: var(--muted); line-height: 1.35; margin-top: 2px; }
+      .taste-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--t); }
       /* Tiny corner tag naming the model — only rendered when a fallback model answered. */
-      .taste-via {
-        position: absolute;
-        right: 7px;
-        bottom: 2px;
-        font-size: 8px;
-        font-weight: 600;
-        letter-spacing: 0;
-        opacity: .6;
-      }
-      .taste.strong {
-        color: #fff;
-        background: linear-gradient(135deg, #ec4899, #f43f5e);
-        box-shadow: 0 4px 14px rgba(244, 63, 94, .35);
-      }
-      .taste.mild {
-        color: #0ea5e9;
-        background: rgba(14, 165, 233, .12);
-        border-color: rgba(14, 165, 233, .4);
-      }
-      .taste.mismatch {
-        color: #d97757;
-        background: rgba(217, 119, 87, .13);
-        border-color: rgba(217, 119, 87, .42);
-      }
+      .taste-via { position: absolute; right: 8px; top: 6px; font-size: 8px; font-weight: 600; opacity: .55; }
       /* Verdict-band key: 2×2 grid inside the right box, under the ratings. */
       .legend {
         display: grid;

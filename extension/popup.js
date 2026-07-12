@@ -45,20 +45,50 @@ function color(verdict) {
   return `var(${VERDICT_VAR[verdict] || '--muted'})`;
 }
 
-// Big rating number, coloured by verdict. (Replaced the semicircle gauge — a bare arc isn't a real
-// donut chart, so it added nothing over just the number + verdict.)
+// Half-donut gauge arching over BOTH the rating number and the verdict, all in the verdict colour.
+// The arc fills to rating/10 over a faint same-colour track.
 function scoreNum(rating, verdict) {
-  return `<div id="score-num" class="score-num" style="color:${color(verdict)}">${rating.toFixed(1)}</div>`;
+  const col = color(verdict);
+  const R = 98; // arc radius; endpoints (12,112)–(208,112), sweep 1 = over the top
+  const LEN = Math.PI * R; // semicircle length
+  const fill = ((Math.max(0, Math.min(10, rating)) / 10) * LEN).toFixed(1);
+  const arc = `M12,112 A${R},${R} 0 0 1 208,112`;
+  return `
+    <div class="score-gauge">
+      <svg class="gauge-svg" viewBox="0 0 220 124" width="220" height="124" aria-hidden="true">
+        <path d="${arc}" fill="none" stroke="${col}" stroke-opacity=".18" stroke-width="10" stroke-linecap="round"/>
+        <path d="${arc}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${fill} 999"/>
+      </svg>
+      <div class="gauge-inner">
+        <div id="score-num" class="score-num" style="color:${col}">${rating.toFixed(1)}</div>
+        <div class="verdict" style="color:${col}">${verdict}</div>
+      </div>
+    </div>`;
 }
 
 // The personalised taste line (LLM "% match — why", or the statistical level message). Shown on the
 // verdict view AND the "Not out yet" / "Too new" views — taste doesn't need a rating to exist.
+const TASTE_EMOJI = { strong: '🎯', mild: '👍', mismatch: '😕' };
+// Headline when the model gave a level but no numeric score.
+const TASTE_FALLBACK = { strong: 'Strong match', mild: 'Likely for you', mismatch: 'Not your taste' };
+
+// Taste "meter card": emoji chip + "NN% match" + why, with a thin fill-bar showing the match %.
 function tasteHtml(data) {
   const t = data.tasteMatch;
   if (!t) return '';
+  const emoji = TASTE_EMOJI[t.level] || '🎯';
+  const hasScore = typeof t.score === 'number';
+  const head = hasScore ? `${t.score}% match` : TASTE_FALLBACK[t.level] || 'For you';
+  const why = t.why ? `<div class="taste-why">${escapeHtml(t.why)}</div>` : '';
+  const bar = hasScore ? `<div class="taste-bar" style="width:${t.score}%"></div>` : '';
   // `via` is set only when a fallback model answered (primary exhausted) — small corner label.
   const via = t.via ? `<span class="taste-via">via ${escapeHtml(t.via)}</span>` : '';
-  return `<div class="taste ${t.level}">${escapeHtml(t.message)}${via}</div>`;
+  return `
+    <div class="taste ${t.level}">
+      <div class="taste-ico">${emoji}</div>
+      <div class="taste-txt"><div class="taste-head">${escapeHtml(head)}</div>${why}</div>
+      ${bar}${via}
+    </div>`;
 }
 
 function legendHtml() {
@@ -227,7 +257,6 @@ function renderScore(data) {
       ${posterHtml(data.posterUrl)}
       <div class="hero-main">
         ${scoreNum(data.tmdbRating, data.verdict)}
-        <div class="verdict" style="color:${color(data.verdict)}">${data.verdict}</div>
         ${titleLine(data)}
         ${ratingsLine(data)}
         ${legendHtml()}

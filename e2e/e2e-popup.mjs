@@ -17,7 +17,7 @@ const SCORE = {
     verdict: 'Perfection',
     tmdbRating: 8.4,
     voteCount: 36000,
-    tasteMatch: { level: 'strong', message: '🔥 Peak you — this is exactly your taste' },
+    tasteMatch: { level: 'strong', score: 96, why: 'exactly your taste', message: '🎯 96% match — exactly your taste' },
     posterUrl: 'https://img/inception.jpg',
     trailerUrl: 'https://www.youtube.com/watch?v=YoHD9XEInc0',
     director: 'Christopher Nolan',
@@ -69,8 +69,10 @@ async function main() {
   const providerText = await page.locator('.prov').first().innerText();
   assert.ok(providerText.includes('Netflix'), 'streaming provider chip renders');
 
-  // Taste match line.
-  assert.ok((await page.locator('.taste').innerText()).includes('Peak you'), 'taste match renders');
+  // Taste match line (meter card: "NN% match" + why).
+  const tasteText = await page.locator('.taste').innerText();
+  assert.ok(tasteText.includes('96% match'), 'taste match score renders');
+  assert.ok(tasteText.includes('exactly your taste'), 'taste why renders');
 
   // Poster, director/lead actor, awards, and the add-to-watchlist button.
   assert.ok(await page.locator('img.poster').count(), 'poster renders');

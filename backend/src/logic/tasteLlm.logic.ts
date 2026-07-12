@@ -87,8 +87,9 @@ strong = they'll love it (score ≥75) · mild = they'll probably like it (score
         ? Math.round(obj.score)
         : null;
     const l = level as TasteMatchLevel;
-    // "🔥 92% match — <why>"; degrade gracefully when score or why is missing.
+    // "🔥 92% match — <why>"; degrade gracefully when score or why is missing. The popup renders
+    // score + why as its own card, but keep the composed message for compact/fallback use.
     const parts = [score !== null ? `${score}% match` : '', why ?? ''].filter(Boolean).join(' — ');
-    return { level: l, message: parts ? `${EMOJI[l]} ${parts}` : EMOJI[l] };
+    return { level: l, score, why, message: parts ? `${EMOJI[l]} ${parts}` : EMOJI[l] };
   }
 }

@@ -102,8 +102,12 @@ export type TasteMatchLevel = 'strong' | 'mild' | 'mismatch';
 
 export interface TasteMatch {
   level: TasteMatchLevel;
-  /** Attention-grabbing copy to render, e.g. "🔥 Peak you — exactly your taste". */
+  /** Composed one-line copy (emoji + "NN% match — why"). Kept for compact/fallback rendering. */
   message: string;
+  /** 0–100 match score, or null when the model didn't give one. Popup shows it + a fill bar. */
+  score?: number | null;
+  /** One short second-person reason, or null. Popup shows it under the score. */
+  why?: string | null;
   /** Model id that produced this line, set ONLY when a fallback model answered (primary exhausted). */
   via?: string;
 }
