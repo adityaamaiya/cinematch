@@ -43,12 +43,7 @@ beforeEach(() => {
   // Spy on model statics so no real Mongo is needed.
   vi.spyOn(ScoreCache, 'get').mockResolvedValue(undefined);
   vi.spyOn(ScoreCache, 'put').mockResolvedValue(undefined);
-  vi.spyOn(Profile, 'findAffinity').mockResolvedValue({});
-  vi.spyOn(Profile, 'findAffinities').mockResolvedValue({
-    genreAffinity: {},
-    directorAffinity: {},
-    actorAffinity: {},
-  });
+  vi.spyOn(Profile, 'getRatedMovies').mockResolvedValue([]);
   vi.spyOn(Profile, 'findLanguagePriority').mockResolvedValue([]);
   vi.spyOn(Profile, 'upsertProfile').mockResolvedValue({} as never);
   vi.spyOn(Profile, 'isOnWatchlist').mockResolvedValue(false);

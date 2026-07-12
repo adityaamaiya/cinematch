@@ -22,11 +22,12 @@ personal watchlist. Backed by a layered TypeScript + Express API on MongoDB, rea
 - Env: `TMDB_*`, `MONGODB_URI`, `SYNC_TOKEN` required; `OMDB_API_KEY` optional (awards degrade to omitted).
 
 ## Taste match (how the "for you" line works)
-Objective verdict = TMDB rating band, never moved by the profile. Taste match is a **separate** line:
-- Each rated verdict → weight (Skip 1 … Perfection 4). Per-genre mean weight − overall mean = signed **affinity** (`syncProfile.logic.ts`). Relative, to cancel a cinephile's "rate everything high" bias.
-- `Scorer` averages the title's genres' affinities → `strong` (≥0.5) / `mild` (≥0.12) / `mismatch` (≤−0.12) / none. Messages in `scorer.logic.ts`.
-- Multi-genre films often average to neutral (no line) — expected. Distinctive genres (the user's are War/Music/History/Drama/Crime/Mystery) fire; Horror/Romance/Kids read mismatch.
-- Others get it by seeding their own ratings: edit `backend/profile.example.json`, `npm run seed`.
+Objective verdict = TMDB rating band (`verdictBand` in `lib/affinity.ts`), never moved by the profile.
+Taste match is a **separate**, LLM-only line:
+- `LlmTaste` (`tasteLlm.logic.ts`) asks Gemini to reason over `backend/taste-profile.md` (gitignored, per-deployment prose summary of the user's ratings) → `strong`/`mild`/`mismatch`/none + a "% match — why" message. Constrained JSON decoding; cached per title (6h) in `ScoreLogic`.
+- Reliability = a model fallback chain in `LlmChain` (`services/llmChain.ts`): every `GEMINI_MODEL` (comma-list) in order, then an optional **Groq** provider (`GROQ_API_KEY`, `GroqService`) when all Gemini models 429. Each provider is an `ILlmProvider` (`request(model,…)`); the chain reports which model answered + a `fallback` flag. When a non-primary model answers, `LlmTaste` sets `TasteMatch.via` and the popup shows a small `via <model>` tag. All LLM providers gone/exhausted → **no taste line** (no statistical fallback — affinity engine removed).
+- `/recommend` is LLM-based too (`LlmRecommend` → suggestions filtered against watched + resolved on TMDB); no key → thin mood→genre→`tmdb.discover` fallback (`moods.ts`).
+- Forkers: write your own `backend/taste-profile.md` (see `taste-profile.example.md`), set `GEMINI_API_KEY`/`GEMINI_MODEL`, `npm run seed` your ratings (drives watchlist + language priority).
 
 ## Working agreement (follow for every change)
 - **Any new feature ships with tests** (vitest for backend logic/services; update `routes.test.ts` mocks).

@@ -1,29 +1,16 @@
-// Pure affinity + language builders — shared by SyncProfileLogic, the calibrate-affinity script,
-// and the unit tests, so they live in their own module (no class, no DB/HTTP). SyncProfileLogic
-// owns the orchestration; this file owns the math.
-import type { Affinities, PersonAffinity, Verdict } from '../types/index.js';
-import { mean, round2 } from './utils.js';
+// Pure, profile-independent scoring helpers — no class, no DB/HTTP. Shared by the logic layer + unit
+// tests. (The statistical taste-affinity engine that used to live here was removed: taste is now the
+// LLM's job. What remains is the objective verdict band + same-name language tie-breaking.)
+import type { Verdict } from '../types/index.js';
 
-export const VERDICT_WEIGHT: Record<Verdict, number> = {
-  Skip: 1,
-  Timepass: 2,
-  'Go For It': 3,
-  Perfection: 4,
-};
+const BANDS: readonly Verdict[] = ['Skip', 'Timepass', 'Go For It', 'Perfection'];
 
-// Ignore genres with too few samples — one 5-star noir shouldn't make "Crime" a top genre.
-const GENRE_MIN_SAMPLES = 3;
-// Directors/actors need fewer samples to matter (a 2-film Nolan streak is a real signal), but
-// still >1 so a single lucky pick doesn't dominate.
-const PERSON_MIN_SAMPLES = 2;
-
-/** One rated film reduced to the signals affinity is built from. */
-export interface RatedSignals {
-  weight: number;
-  genres: string[];
-  director?: string;
-  leadActor?: string;
-  language?: string;
+// The objective verdict — a TMDB rating dropped into one of four bands. Never moved by the profile.
+export function verdictBand(rating: number): Verdict {
+  if (rating < 4) return BANDS[0];
+  if (rating < 6) return BANDS[1];
+  if (rating < 7.5) return BANDS[2];
+  return BANDS[3];
 }
 
 // Languages the user watches enough to matter (≥ this many rated films). Used to break same-name
@@ -50,50 +37,12 @@ const HOME_LANGUAGES = new Set(
 );
 const langTier = (lang: string): number => (HOME_LANGUAGES.has(lang) ? 0 : lang === 'en' ? 1 : 2);
 
-export function rankLanguages(films: RatedSignals[]): string[] {
+// Given the languages of the user's rated films, return the disambiguation priority (see tiers).
+export function rankLanguages(languages: string[]): string[] {
   const counts: Record<string, number> = {};
-  for (const f of films) if (f.language) counts[f.language] = (counts[f.language] ?? 0) + 1;
+  for (const lang of languages) if (lang) counts[lang] = (counts[lang] ?? 0) + 1;
   return Object.entries(counts)
     .filter(([, n]) => n >= LANGUAGE_MIN_COUNT)
     .sort((a, b) => langTier(a[0]) - langTier(b[0]) || b[1] - a[1])
     .map(([lang]) => lang);
-}
-
-// Affinity = per-key mean verdict-weight minus the user's overall mean (relative preference, to
-// cancel the cinephile bias of rating almost everything highly). Same math for genre + person maps.
-// NB: a fixed baseline shift (e.g. toward the scale midpoint to "add absolute verdict level") only
-// translates every score by a constant — it never changes rank, so it's equivalent to moving the
-// scorer cutoffs and buys nothing. Ranking is set by the RELATIVE spread; tune cutoffs instead.
-export function buildAffinities(films: RatedSignals[]): Affinities {
-  const byGenre: Record<string, number[]> = {};
-  const byDirector: Record<string, number[]> = {};
-  const byActor: Record<string, number[]> = {};
-  const allWeights: number[] = [];
-
-  for (const f of films) {
-    allWeights.push(f.weight);
-    for (const g of f.genres) (byGenre[g] ??= []).push(f.weight);
-    if (f.director) (byDirector[f.director] ??= []).push(f.weight);
-    if (f.leadActor) (byActor[f.leadActor] ??= []).push(f.weight);
-  }
-
-  if (allWeights.length === 0) {
-    return { genreAffinity: {}, directorAffinity: {}, actorAffinity: {} };
-  }
-  const baseline = mean(allWeights);
-
-  const reduce = (m: Record<string, number[]>, minSamples: number): PersonAffinity => {
-    const out: PersonAffinity = {};
-    for (const [key, weights] of Object.entries(m)) {
-      if (weights.length < minSamples) continue;
-      out[key] = round2(mean(weights) - baseline);
-    }
-    return out;
-  };
-
-  return {
-    genreAffinity: reduce(byGenre, GENRE_MIN_SAMPLES),
-    directorAffinity: reduce(byDirector, PERSON_MIN_SAMPLES),
-    actorAffinity: reduce(byActor, PERSON_MIN_SAMPLES),
-  };
 }

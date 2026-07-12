@@ -1,18 +1,30 @@
 import { describe, it, expect, vi } from 'vitest';
 import { LlmTaste } from '../src/logic/tasteLlm.logic.js';
-import type { IGeminiService, TmdbMovie } from '../src/types/index.js';
+import type { ILlm, TmdbMovie } from '../src/types/index.js';
 
 const movie: TmdbMovie = {
   tmdbId: 1, mediaType: 'movie', title: 'Memories of Murder', year: 2003, rating: 8.1, genres: ['Crime', 'Drama'], released: true,
 };
 const profile = 'Loves Korean crime thrillers and Bong Joon-ho slow-burns; bored by franchise filler.';
-const fake = (text: string): IGeminiService => ({ generate: vi.fn(async () => text) });
+const fake = (text: string, model = 'gemini-flash-latest', fallback = false): ILlm => ({
+  generate: vi.fn(async () => ({ text, model, fallback })),
+});
 
 describe('LlmTaste', () => {
   it('maps a strong verdict to a level + emoji + score message', async () => {
     const t = await new LlmTaste(fake('{"level":"strong","score":92,"why":"you love Bong Joon-ho slow-burns"}'), profile).execute({ movie });
     expect(t?.level).toBe('strong');
     expect(t?.message).toBe('🔥 92% match — you love Bong Joon-ho slow-burns');
+  });
+
+  it('sets `via` to the model only when a fallback answered', async () => {
+    const primary = await new LlmTaste(fake('{"level":"strong","score":9,"why":"x"}'), profile).execute({ movie });
+    expect(primary?.via).toBeUndefined();
+    const fell = await new LlmTaste(
+      fake('{"level":"strong","score":9,"why":"x"}', 'llama-3.3-70b-versatile', true),
+      profile,
+    ).execute({ movie });
+    expect(fell?.via).toBe('llama-3.3-70b-versatile');
   });
 
   it('degrades gracefully when the score is missing or out of range', async () => {

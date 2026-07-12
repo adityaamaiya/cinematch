@@ -1,7 +1,7 @@
 // Composition root: build deps, wire logic → controllers → routers, mount middleware. Separate
 // from index.ts so tests inject a mock TMDB client and skip the DB connection + bound port.
 import express, { type Express } from 'express';
-import type { IGeminiService, ILogger, IOmdbService, ITmdbService } from './types/index.js';
+import type { ILlm, ILogger, IOmdbService, ITmdbService } from './types/index.js';
 import { Logger } from './lib/logger.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 import { rateLimit } from './middleware/rateLimit.middleware.js';
@@ -14,10 +14,10 @@ import { ScoreController } from './controllers/score.controller.js';
 import { RecommendController } from './controllers/recommend.controller.js';
 import { ProfileController } from './controllers/profile.controller.js';
 import { WatchlistController } from './controllers/watchlist.controller.js';
-import { Scorer } from './logic/scorer.logic.js';
 import { MovieLookup } from './logic/movieLookup.js';
 import { ScoreLogic } from './logic/score.logic.js';
 import { LlmTaste } from './logic/tasteLlm.logic.js';
+import { LlmRecommend } from './logic/llmRecommend.logic.js';
 import { RecommendLogic } from './logic/recommend.logic.js';
 import { SyncProfileLogic } from './logic/syncProfile.logic.js';
 import { WatchlistLogic } from './logic/watchlist.logic.js';
@@ -26,9 +26,9 @@ export interface AppDeps {
   tmdb: ITmdbService;
   omdb: IOmdbService;
   syncToken: string;
-  /** Optional — enables the LLM taste mode. Absent → statistical Scorer only. */
-  gemini?: IGeminiService;
-  /** Precomputed taste-profile prose (taste-profile.md). LLM taste needs both this and gemini. */
+  /** Optional — enables the LLM taste line + LLM recommendations. Absent → no taste line, discover-based /recommend. */
+  llm?: ILlm;
+  /** Precomputed taste-profile prose (taste-profile.md). LLM taste needs both this and llm. */
   tasteProfile?: string;
   logger?: ILogger;
 }
@@ -43,18 +43,18 @@ export function createApp(deps: AppDeps): Express {
   const publicLimiter = rateLimit({ windowMs: 60_000, max: 60 });
 
   // --- wire dependencies (interface → concrete, one place) ---
-  const scorer = new Scorer();
   const lookup = new MovieLookup(deps.tmdb, logger);
-  const llmTaste =
-    deps.gemini && deps.tasteProfile?.trim()
-      ? new LlmTaste(deps.gemini, deps.tasteProfile)
-      : undefined;
+  const hasLlm = deps.llm && deps.tasteProfile?.trim();
+  const llmTaste = hasLlm ? new LlmTaste(deps.llm!, deps.tasteProfile!) : undefined;
+  const llmRecommend = hasLlm ? new LlmRecommend(deps.llm!, deps.tasteProfile!) : undefined;
   const scoreController = new ScoreController(
-    new ScoreLogic(lookup, scorer, deps.tmdb, deps.omdb, llmTaste),
+    new ScoreLogic(lookup, deps.tmdb, deps.omdb, llmTaste),
   );
-  const recommendController = new RecommendController(new RecommendLogic(deps.tmdb, scorer));
-  const profileController = new ProfileController(new SyncProfileLogic(lookup, deps.tmdb));
-  const watchlistController = new WatchlistController(new WatchlistLogic(lookup, scorer, deps.tmdb));
+  const recommendController = new RecommendController(
+    new RecommendLogic(deps.tmdb, lookup, llmRecommend),
+  );
+  const profileController = new ProfileController(new SyncProfileLogic(lookup));
+  const watchlistController = new WatchlistController(new WatchlistLogic(lookup, deps.tmdb));
 
   // --- routes ---
   app.use(healthRouter());

@@ -11,8 +11,8 @@ import type {
 import { AppError } from '../lib/errors.js';
 import { Profile } from '../models/profile.model.js';
 import { TtlCache } from '../lib/ttlCache.js';
+import { verdictBand } from '../lib/affinity.js';
 import type { MovieLookup } from './movieLookup.js';
-import type { Scorer } from './scorer.logic.js';
 import type { LlmTaste } from './tasteLlm.logic.js';
 
 export interface ScoreInput {
@@ -35,10 +35,9 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
 
   constructor(
     private readonly lookup: MovieLookup,
-    private readonly scorer: Scorer,
     private readonly tmdb: ITmdbService,
     private readonly omdb: IOmdbService,
-    // Optional LLM taste mode; when absent, taste is the statistical Scorer only.
+    // Optional LLM taste mode; when absent, no taste line is shown.
     private readonly llmTaste?: LlmTaste,
   ) {}
 
@@ -58,8 +57,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     const mediaType = movie.mediaType ?? 'movie';
     const cacheKey = `${mediaType}:${movie.tmdbId}`;
     const omdbKey = `${movie.title.toLowerCase()}|${movie.year ?? ''}`;
-    const [affinities, watch, officialTrailer, credits, omdb, onWatchlist] = await Promise.all([
-      Profile.findAffinities(input.userKey),
+    const [watch, officialTrailer, credits, omdb, onWatchlist] = await Promise.all([
       this.watchCache
         .remember(`${cacheKey}:${WATCH_COUNTRY}`, () =>
           this.tmdb.watchProviders(movie.tmdbId, mediaType, WATCH_COUNTRY),
@@ -75,26 +73,15 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       Profile.isOnWatchlist(input.userKey, movie.title, movie.year).catch(() => false),
     ]);
 
-    // Unreleased titles have no real rating yet → no verdict/taste; the popup shows the date instead.
-    // Only an explicit false counts as unreleased (entries cached before `released` existed are
-    // undefined → treat as released, since they carry a real rating).
+    // Verdict = objective TMDB band. Unreleased titles have no real rating yet → no verdict (the
+    // popup shows the release date instead). Only an explicit false counts as unreleased.
     const released = movie.released !== false;
-    const scored = released
-      ? await this.scorer.execute({
-          movie,
-          affinity: affinities.genreAffinity,
-          director: credits.director,
-          leadActor: credits.leadActor,
-          directorAffinity: affinities.directorAffinity,
-          actorAffinity: affinities.actorAffinity,
-        })
-      : { verdict: 'Skip' as const, tasteMatch: null };
+    const verdict = released ? verdictBand(movie.rating) : 'Skip';
 
-    // Taste line: prefer the LLM's reasoning when configured; fall back to the statistical result on
-    // any error (and cache per title so repeat views don't re-hit Gemini). Verdict stays objective.
-    // Computed even for unreleased/unrated titles — the model predicts taste from story/director/cast,
-    // which doesn't need a rating to exist yet ("you'll love this upcoming Nolan film").
-    let tasteMatch = scored.tasteMatch;
+    // Taste line = LLM only (no statistical fallback). Computed even for unreleased/unrated titles —
+    // the model predicts from story/director/cast, which doesn't need a rating to exist yet. Cached
+    // per title so repeat views don't re-hit Gemini; on any error → no taste line.
+    let tasteMatch: TasteMatch | null = null;
     if (this.llmTaste) {
       tasteMatch = await this.tasteCache
         .remember(`${cacheKey}:llm`, () =>
@@ -104,14 +91,14 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
             leadActor: credits.leadActor,
           }),
         )
-        .catch(() => scored.tasteMatch);
+        .catch(() => null);
     }
 
     return {
       title: movie.title,
       year: movie.year,
       type: mediaType === 'tv' ? 'Show' : 'Movie',
-      verdict: scored.verdict,
+      verdict,
       tmdbRating: movie.rating,
       voteCount: movie.voteCount,
       tasteMatch,

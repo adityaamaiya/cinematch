@@ -1,10 +1,9 @@
 // LLM taste mode: predict how THIS user would rate a film by reasoning over a precomputed taste
-// profile (tone, themes, director/cast patterns) — richer than the name-only statistical Scorer.
-// The profile is a compact prose summary of their rating history (backend/taste-profile.md),
-// analysed offline so every /score prompt stays small. Optional; ScoreLogic falls back to the
-// Scorer when Gemini is unconfigured or errors.
+// profile (tone, themes, director/cast patterns). The profile is a compact prose summary of their
+// rating history (backend/taste-profile.md), analysed offline so every /score prompt stays small.
+// Optional; ScoreLogic shows no taste line when the LLM is unconfigured or errors.
 import type {
-  IGeminiService,
+  ILlm,
   ILogic,
   TasteMatch,
   TasteMatchLevel,
@@ -34,13 +33,16 @@ const RESPONSE_SCHEMA = {
 
 export class LlmTaste implements ILogic<LlmTasteInput, TasteMatch | null> {
   constructor(
-    private readonly gemini: IGeminiService,
+    private readonly llm: ILlm,
     private readonly profile: string,
   ) {}
 
   async execute(input: LlmTasteInput): Promise<TasteMatch | null> {
-    const raw = await this.gemini.generate(this.prompt(input), true, RESPONSE_SCHEMA);
-    return this.parse(raw);
+    const { text, model, fallback } = await this.llm.generate(this.prompt(input), true, RESPONSE_SCHEMA);
+    const taste = this.parse(text);
+    // Surface the model only when a fallback answered (primary exhausted) — the popup shows it small.
+    if (taste && fallback) taste.via = model;
+    return taste;
   }
 
   private prompt({ movie, director, leadActor }: LlmTasteInput): string {
@@ -68,8 +70,8 @@ strong = they'll love it (score ≥75) · mild = they'll probably like it (score
   }
 
   // Parse the model's JSON. "none" → no taste line (null, cacheable). Malformed → throw: that's an
-  // upstream fault, so ScoreLogic falls back to the statistical line and retries on the next request
-  // instead of caching an empty answer for 6h.
+  // upstream fault, so ScoreLogic drops the taste line and retries on the next request instead of
+  // caching an empty answer for 6h.
   private parse(raw: string): TasteMatch | null {
     let obj: { level?: string; score?: number; why?: string };
     try {

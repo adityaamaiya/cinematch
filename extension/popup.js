@@ -54,9 +54,11 @@ function scoreNum(rating, verdict) {
 // The personalised taste line (LLM "% match — why", or the statistical level message). Shown on the
 // verdict view AND the "Not out yet" / "Too new" views — taste doesn't need a rating to exist.
 function tasteHtml(data) {
-  return data.tasteMatch
-    ? `<div class="taste ${data.tasteMatch.level}">${escapeHtml(data.tasteMatch.message)}</div>`
-    : '';
+  const t = data.tasteMatch;
+  if (!t) return '';
+  // `via` is set only when a fallback model answered (primary exhausted) — small corner label.
+  const via = t.via ? `<span class="taste-via">via ${escapeHtml(t.via)}</span>` : '';
+  return `<div class="taste ${t.level}">${escapeHtml(t.message)}${via}</div>`;
 }
 
 function legendHtml() {

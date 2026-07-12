@@ -8,47 +8,30 @@ function mockFetch(status: number, body: unknown) {
 const svc = new GeminiService('test-key', 'gemini-flash-latest', new Logger('test'));
 afterEach(() => vi.unstubAllGlobals());
 
-describe('GeminiService.generate', () => {
+describe('GeminiService.request', () => {
   it('joins the candidate parts into text', async () => {
     vi.stubGlobal('fetch', mockFetch(200, { candidates: [{ content: { parts: [{ text: 'he' }, { text: 'llo' }] } }] }));
-    expect(await svc.generate('hi')).toBe('hello');
+    expect(await svc.request('gemini-flash-latest', 'hi')).toBe('hello');
   });
 
-  it('throws on a non-retryable upstream failure', async () => {
-    vi.stubGlobal('fetch', mockFetch(500, {}));
-    await expect(svc.generate('hi')).rejects.toThrow(/Gemini request failed/);
+  it('parses the model list into an ordered chain', () => {
+    expect(new GeminiService('k', 'model-a, model-b', new Logger('test')).models).toEqual(['model-a', 'model-b']);
   });
 
-  it('falls through to the next model on a transient 429/503', async () => {
-    const chain = new GeminiService('k', 'model-a,model-b', new Logger('test'));
-    const urls: string[] = [];
-    const fetchMock = vi.fn(async (url: string) => {
-      urls.push(url);
-      return (url.includes('model-a')
-        ? { ok: false, status: 429, json: async () => ({}) }
-        : { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }) }) as Response;
-    });
-    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
-    expect(await chain.generate('hi')).toBe('ok');
-    expect(urls[0]).toContain('model-a');
-    expect(urls[1]).toContain('model-b');
-  });
-
-  it('throws only when every model in the chain is exhausted', async () => {
-    const chain = new GeminiService('k', 'model-a,model-b', new Logger('test'));
+  it('throws on an upstream failure, keeping the status in the message', async () => {
     vi.stubGlobal('fetch', mockFetch(429, {}));
-    await expect(chain.generate('hi')).rejects.toThrow(/Gemini request failed/);
+    await expect(svc.request('gemini-flash-latest', 'hi')).rejects.toThrow(/Gemini request failed \(429\)/);
   });
 
   it('throws when the model returns no text', async () => {
     vi.stubGlobal('fetch', mockFetch(200, { candidates: [{ content: {} }] }));
-    await expect(svc.generate('hi')).rejects.toThrow(/empty/);
+    await expect(svc.request('gemini-flash-latest', 'hi')).rejects.toThrow(/empty/);
   });
 
   it('requests JSON output when asked', async () => {
     const fetchMock = mockFetch(200, { candidates: [{ content: { parts: [{ text: '{}' }] } }] });
     vi.stubGlobal('fetch', fetchMock);
-    await svc.generate('hi', true);
+    await svc.request('gemini-flash-latest', 'hi', true);
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body);
     expect(body.generationConfig.responseMimeType).toBe('application/json');
   });
@@ -56,7 +39,7 @@ describe('GeminiService.generate', () => {
   it('includes the response schema when given', async () => {
     const fetchMock = mockFetch(200, { candidates: [{ content: { parts: [{ text: '{}' }] } }] });
     vi.stubGlobal('fetch', fetchMock);
-    await svc.generate('hi', true, { type: 'OBJECT' });
+    await svc.request('gemini-flash-latest', 'hi', true, { type: 'OBJECT' });
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body);
     expect(body.generationConfig.responseSchema).toEqual({ type: 'OBJECT' });
   });

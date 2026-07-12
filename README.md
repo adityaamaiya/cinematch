@@ -40,11 +40,11 @@ On any movie page — here the popup open on a Prime Video title:
  movie page ──content.js──▶ popup ──GET /score?title=──▶ backend ──▶ TMDB (rating + genres)
  (Netflix, …)                                             │              │
                                                           ▼              ▼
-                                     genre+director+actor         ScoreCache (Mongo)
-                                     affinity (your profile)             │
-                                                          └──▶ Scorer ────┘
-                                                                 │
-                                          verdict + taste-match ◀┘  ──▶ gauge in popup
+                                   verdictBand(rating)          ScoreCache (Mongo)
+                                          │                            │
+              LLM taste (Gemini + taste-profile.md) ──▶ taste-match    │
+                                          │                            │
+                          verdict + taste-match ◀────────────── number + verdict in popup
 ```
 
 The popup also shows the **director + lead actor**, **awards**, and cross-site ratings with vote
@@ -64,7 +64,7 @@ button and a taste-ranked **My watchlist**. Your taste profile is loaded once by
 ### Backend architecture
 - **route** — maps a path to a controller method (thin).
 - **controller** — class; validates input with Zod, calls a logic class, returns an `ApiResponse<T>` with the right status. No business logic.
-- **logic** — class implementing `ILogic<I,O>` with `execute()` as the single entry (everything else a private method). One per operation (`ScoreLogic`, `RecommendLogic`, `SyncProfileLogic`, `WatchlistLogic`), plus the pure `Scorer` and shared `MovieLookup`.
+- **logic** — class implementing `ILogic<I,O>` with `execute()` as the single entry (everything else a private method). One per operation (`ScoreLogic`, `RecommendLogic`, `SyncProfileLogic`, `WatchlistLogic`, `LlmTaste`, `LlmRecommend`), plus the shared `MovieLookup`.
 - **service** — third-party HTTP clients only (`TmdbService`, `OmdbService`): fetch + auth, no shaping, no DB.
 - **adapter** — class implementing `IAdapter<Raw,Out>` with `adapt()`; maps a raw third-party response to our domain type (`TmdbAdapter`, `OmdbAdapter`). Keeps services thin.
 - **model** — Mongoose model + static functions for all DB access (`Profile`, `ScoreCache`).
@@ -80,25 +80,27 @@ Shared pure helpers live in `lib/` (e.g. `lib/affinity.ts`). Everything is wired
 | `6–7.5` | Go For It |
 | `7.5–10` | Perfection |
 
-**Taste match** (separate from the verdict): each rated verdict maps to a weight (Skip 1 … Perfection 4).
-For each **genre, director, and lead actor**, its mean weight minus your overall mean gives a signed
-affinity (relative, so it cancels a "rate everything high" bias). Scoring a title blends the three
-signals that apply — genre `0.35` / director `0.45` / actor `0.20`, renormalised over whichever are
-present (director is the strongest personal signal) — into `strong` / `mild` / `mismatch` (or nothing).
-Cutoffs are tuned to the profile's own spread (see `scripts/calibrate-affinity.ts`). No profile → no
-taste line, verdict only.
-
-**LLM taste mode (optional).** Set a `GEMINI_API_KEY` and the taste line is produced instead by
-Gemini reasoning over a **precomputed taste profile** (`backend/taste-profile.md` — a compact prose
-summary of your ratings: favourite directors/genres, the tone/structure/pacing you gravitate to, and
-explicit turn-offs). Analysing the profile once, offline, keeps every `/score` prompt small and fast
-— versus stuffing hundreds of raw ratings into each call. It matches on *tone, themes, and
-director/cast patterns*, not just genre/name overlap, and returns a **match score + one-line why**
-(e.g. `🔥 98% match — mind-bending Nolan sci-fi with the tight screenplay you love`). Constrained
-JSON decoding keeps replies well-formed. Cached per title (6h). `GEMINI_MODEL` can be a
+**Taste match** (separate from the verdict): a personalised "for you" line, powered by an LLM.
+Set a `GEMINI_API_KEY` and the taste line is produced by Gemini reasoning over a **precomputed taste
+profile** (`backend/taste-profile.md` — a compact prose summary of your ratings: favourite
+directors/genres, the tone/structure/pacing you gravitate to, and explicit turn-offs). Analysing the
+profile once, offline, keeps every `/score` prompt small and fast — versus stuffing hundreds of raw
+ratings into each call. It matches on *tone, themes, and director/cast patterns*, not just
+genre/name overlap, and returns a **match score + one-line why** (e.g.
+`🔥 98% match — mind-bending Nolan sci-fi with the tight screenplay you love`). Constrained JSON
+decoding keeps replies well-formed. Cached per title (6h). `GEMINI_MODEL` can be a
 **comma-separated fallback chain** — each free model has its own daily quota, so on a `429`/`503` the
-next model is tried; when all are exhausted it falls back to the statistical signal, so it never
-blocks a score. The objective verdict is untouched.
+next model is tried. When *every* Gemini model is exhausted, an optional **Groq** provider
+(`GROQ_API_KEY`, far higher free daily limits — `llama-3.3-70b-versatile` by default) is tried next;
+only when that's gone too is the taste line omitted (never blocks a score). When a **non-primary
+model** answers, the taste line shows a tiny `via <model>` tag in the corner so it's obvious a
+fallback was used. No `GEMINI_API_KEY`/`GROQ_API_KEY` → verdict only, no taste line. The objective
+verdict is untouched either way.
+
+**Recommendations (`/recommend`)** are LLM-based too: Gemini suggests titles your taste profile
+would rate *Go For It* / *Perfection* (optionally filtered by a mood or genre), excluding anything
+you've already watched, each resolved on TMDB (so hallucinations drop out). With no `GEMINI_API_KEY`
+it falls back to a thin mood→genre→TMDB-discover, so recommend + the mood chips still work.
 
 **Same-name titles.** When several films share a title, an on-page year decides. With no year, the
 tie is broken by **language priority** — the languages you actually watch most, learned from your
@@ -192,22 +194,23 @@ After deploying, point `DEFAULT_BACKEND` in [extension/popup.js](extension/popup
 
 ## Fork it
 
-CineMatch isn't tied to any one account — the verdict, statistical taste, detection, and watchlist
-all regenerate from **your** seeded ratings. Fork, set your own `.env`, and seed your ratings.
+CineMatch isn't tied to any one account — the verdict, taste line, recommendations, detection, and
+watchlist all regenerate from **your** taste profile + seeded ratings. Fork, set your own `.env`,
+and seed your ratings.
 
 **To re-tune it to your taste (not the repo owner's):**
 1. **Ratings** — get yours into `{ title, type, year, verdict }` JSON and `npm run seed`
-   (`scripts/moctale-to-profile.ts` is an example converter; adapt it to your source).
+   (`scripts/moctale-to-profile.ts` is an example converter; adapt it to your source). This drives
+   the watchlist + language priority; the taste line/recommendations come from `taste-profile.md`.
 2. **`HOME_LANGUAGES`** — set your region's language codes in `.env` (default is Indian languages).
-3. **LLM taste mode** — `taste-profile.md` is gitignored and per-deployment. Generate your own from
+3. **Taste profile** — `taste-profile.md` is gitignored and per-deployment. Generate your own from
    `taste-profile.example.md` (paste your ratings into an LLM, save the summary as
-   `backend/taste-profile.md`). Without it, the taste line uses the statistical signal.
-4. **Cutoffs** — the statistical strong/mild/mismatch thresholds are tuned to the owner's rating
-   spread; re-run `scripts/calibrate-affinity.ts` against yours if the taste line feels off.
+   `backend/taste-profile.md`), and set `GEMINI_API_KEY` + `GEMINI_MODEL`. Without it, there's no
+   taste line and `/recommend` uses genre-discover.
 
 ## Tech
 
-Vanilla JS (MV3) · Node 20 · Express · TypeScript · Mongoose · Zod · Gemini · Playwright · vitest.
+Vanilla JS (MV3) · Node 20 · Express · TypeScript · Mongoose · Zod · Gemini (+ Groq fallback) · Playwright · vitest.
 
 ## License
 

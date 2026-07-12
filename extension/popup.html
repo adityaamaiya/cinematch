@@ -98,6 +98,7 @@
       /* Taste line has its OWN vibe palette, deliberately distinct from the verdict colours.
          strong = loud filled gradient, mild = tinted outline, mismatch = quiet slate. */
       .taste {
+        position: relative;
         margin: 12px 0 4px;
         padding: 9px 12px;
         border-radius: 10px;
@@ -105,6 +106,16 @@
         text-align: center;
         font-weight: 700;
         letter-spacing: .01em;
+      }
+      /* Tiny corner tag naming the model — only rendered when a fallback model answered. */
+      .taste-via {
+        position: absolute;
+        right: 7px;
+        bottom: 2px;
+        font-size: 8px;
+        font-weight: 600;
+        letter-spacing: 0;
+        opacity: .6;
       }
       .taste.strong {
         color: #fff;

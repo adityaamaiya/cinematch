@@ -22,10 +22,14 @@ export interface Env {
   syncToken: string;
   /** Optional — enables the awards + IMDb-rating line. Empty string = disabled. */
   omdbApiKey: string;
-  /** Optional — enables the LLM taste mode. Empty string = disabled (statistical Scorer only). */
+  /** Optional — enables the LLM taste line + recommendations. Empty string = disabled (no taste line). */
   geminiApiKey: string;
   /** Gemini model id(s) for the taste mode; comma-separated = fallback chain (own quota each). */
   geminiModel: string;
+  /** Optional — Groq API key, the cross-provider fallback tried after every Gemini model 429s. */
+  groqApiKey: string;
+  /** Groq model id(s); comma-separated = fallback chain. Only used when GROQ_API_KEY is set. */
+  groqModel: string;
 }
 
 export const env: Env = {
@@ -37,4 +41,6 @@ export const env: Env = {
   omdbApiKey: optional('OMDB_API_KEY', ''),
   geminiApiKey: optional('GEMINI_API_KEY', ''),
   geminiModel: optional('GEMINI_MODEL', 'gemini-flash-lite-latest,gemini-2.5-flash'),
+  groqApiKey: optional('GROQ_API_KEY', ''),
+  groqModel: optional('GROQ_MODEL', 'llama-3.3-70b-versatile'),
 };

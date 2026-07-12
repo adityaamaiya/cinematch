@@ -4,9 +4,12 @@ import mongoose from 'mongoose';
 import { env } from './config/env.js';
 import { createApp } from './app.js';
 import { Logger } from './lib/logger.js';
+import type { ILlm, ILlmProvider } from './types/index.js';
 import { TmdbService } from './services/tmdb.service.js';
 import { OmdbService } from './services/omdb.service.js';
 import { GeminiService } from './services/gemini.service.js';
+import { GroqService } from './services/groq.service.js';
+import { LlmChain } from './services/llmChain.js';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const logger = new Logger('boot');
@@ -17,15 +20,17 @@ async function main(): Promise<void> {
 
   const tmdb = new TmdbService(TMDB_BASE_URL, env.tmdbReadToken, new Logger('tmdb'));
   const omdb = new OmdbService(env.omdbApiKey, new Logger('omdb'));
-  // Optional LLM taste mode — needs both a key and the precomputed taste profile.
-  const gemini = env.geminiApiKey
-    ? new GeminiService(env.geminiApiKey, env.geminiModel, new Logger('gemini'))
-    : undefined;
+  // Optional LLM taste mode — needs both a provider and the precomputed taste profile. Gemini first,
+  // then Groq as a cross-provider fallback when every Gemini model is quota-exhausted.
+  const providers: ILlmProvider[] = [];
+  if (env.geminiApiKey) providers.push(new GeminiService(env.geminiApiKey, env.geminiModel, new Logger('gemini')));
+  if (env.groqApiKey) providers.push(new GroqService(env.groqApiKey, env.groqModel, new Logger('groq')));
+  const llm: ILlm | undefined = providers.length ? new LlmChain(providers, new Logger('llm')) : undefined;
   const tasteProfile = readTasteProfile();
-  if (gemini && !tasteProfile) {
-    logger.warn('GEMINI_API_KEY set but taste-profile.md missing/empty — LLM taste off');
+  if (llm && !tasteProfile) {
+    logger.warn('LLM key set but taste-profile.md missing/empty — LLM taste off');
   }
-  const app = createApp({ tmdb, omdb, gemini, tasteProfile, syncToken: env.syncToken });
+  const app = createApp({ tmdb, omdb, llm, tasteProfile, syncToken: env.syncToken });
 
   app.listen(env.port, () => {
     logger.info(`CineMatch backend listening on http://localhost:${env.port}`);

@@ -104,6 +104,8 @@ export interface TasteMatch {
   level: TasteMatchLevel;
   /** Attention-grabbing copy to render, e.g. "🔥 Peak you — exactly your taste". */
   message: string;
+  /** Model id that produced this line, set ONLY when a fallback model answered (primary exhausted). */
+  via?: string;
 }
 
 /** What GET /score returns. */
@@ -157,14 +159,13 @@ export interface Recommendation {
   posterUrl?: string;
 }
 
-/** A watchlist entry scored + taste-matched for the "My list" view. */
+/** A watchlist entry scored for the "My list" view. */
 export interface WatchlistScored {
   title: string;
   year?: number;
   type: ContentType;
   verdict: Verdict;
   tmdbRating: number;
-  tasteMatch: TasteMatch | null;
   posterUrl?: string;
   director?: string;
   /** False when the title isn't out yet — the list shows "Upcoming" instead of a verdict. */
@@ -173,22 +174,6 @@ export interface WatchlistScored {
 
 /** Mood buckets the extension can pick from; each maps to TMDB genres. */
 export type Mood = 'chill' | 'intense' | 'feelgood' | 'mindbender' | 'classic';
-
-/**
- * Genre-affinity map: genre name → signed preference relative to the user's mean.
- * Positive = liked more than average, negative = liked less. Empty for no profile.
- */
-export type GenreAffinity = Record<string, number>;
-
-/** Same shape as GenreAffinity, but keyed by a person's name (director or actor). */
-export type PersonAffinity = Record<string, number>;
-
-/** All three taste signals derived on sync: broad (genre) + personal (director/actor). */
-export interface Affinities {
-  genreAffinity: GenreAffinity;
-  directorAffinity: PersonAffinity;
-  actorAffinity: PersonAffinity;
-}
 
 // --- Service contracts (third-party clients only) ---
 
@@ -236,13 +221,41 @@ export interface IOmdbService {
   lookup(title: string, year?: number): Promise<OmdbInfo | null>;
 }
 
-/** Google Gemini text-generation client. Powers the optional LLM taste mode. */
-export interface IGeminiService {
+/** Result of one LLM generation: the text plus which model produced it. */
+export interface LlmResult {
+  text: string;
+  /** Model id that answered, e.g. "gemini-flash-latest" or "llama-3.3-70b-versatile". */
+  model: string;
+  /** True when a non-primary model answered (an earlier model in the chain was exhausted). */
+  fallback: boolean;
+}
+
+/**
+ * LLM text generation, powering the optional taste line + recommendations. Backed by a chain of
+ * providers/models (LlmChain) so a 429/503 falls through to the next; reports which one answered.
+ */
+export interface ILlm {
   /**
-   * Send a prompt, return the model's text output. `json` requests a JSON body; `schema` adds
-   * constrained decoding (Gemini responseSchema) so the JSON shape is guaranteed. Throws on failure.
+   * Send a prompt, return the model's text + which model produced it. `json` requests a JSON body;
+   * `schema` adds constrained decoding where the provider supports it. Throws when all models fail.
    */
-  generate(prompt: string, json?: boolean, schema?: object): Promise<string>;
+  generate(prompt: string, json?: boolean, schema?: object): Promise<LlmResult>;
+}
+
+/**
+ * One LLM provider (Gemini, Groq, …). Owns a single-model HTTP call + the ordered model list it
+ * offers. Chaining/fallback across models and providers lives in LlmChain, not here.
+ */
+export interface ILlmProvider {
+  /** Short label used to build the model id and for logging, e.g. "gemini", "groq". */
+  readonly label: string;
+  /** Model ids this provider should try, in order. */
+  readonly models: string[];
+  /**
+   * Call one model. Must throw an AppError whose message contains "(429)" or "(503)" on a
+   * transient/quota failure so the chain falls through to the next model.
+   */
+  request(model: string, prompt: string, json?: boolean, schema?: object): Promise<string>;
 }
 
 // --- Logger contract ---
