@@ -140,21 +140,27 @@ function fmtCount(n) {
   return String(n);
 }
 
-// "TMDB 8.4 (12K) · IMDb 8.8 (2.5M)". Each source shown only when it has a rating.
+// Two lines: audience scores (TMDB · IMDb, with vote counts) on top, critic scores
+// (Rotten Tomatoes · Metacritic — OMDb gives no count for these) below.
 function ratingsLine(data) {
-  const parts = [];
+  const audience = [];
   if (data.tmdbRating > 0) {
     const c = fmtCount(data.voteCount);
-    parts.push(`TMDB ${data.tmdbRating.toFixed(1)}${c ? ` (${c})` : ''}`);
+    audience.push(`TMDB ${data.tmdbRating.toFixed(1)}${c ? ` (${c})` : ''}`);
   }
   if (data.imdbRating) {
     const votes = data.imdbVotes ? Number(String(data.imdbVotes).replace(/[^0-9]/g, '')) : 0;
     const c = fmtCount(votes);
-    parts.push(`IMDb ${escapeHtml(String(data.imdbRating))}${c ? ` (${c})` : ''}`);
+    audience.push(`IMDb ${escapeHtml(String(data.imdbRating))}${c ? ` (${c})` : ''}`);
   }
-  if (data.rottenTomatoes) parts.push(`🍅 ${escapeHtml(String(data.rottenTomatoes))}`);
-  if (data.metascore) parts.push(`Ⓜ ${escapeHtml(String(data.metascore))}`);
-  return parts.length ? `<div class="rating scores">${parts.join(' · ')}</div>` : '';
+  const critics = [];
+  if (data.rottenTomatoes) critics.push(`🍅 ${escapeHtml(String(data.rottenTomatoes))}`);
+  if (data.metascore) critics.push(`Ⓜ ${escapeHtml(String(data.metascore))}`);
+
+  return (
+    (audience.length ? `<div class="rating">${audience.join(' · ')}</div>` : '') +
+    (critics.length ? `<div class="rating">${critics.join(' · ')}</div>` : '')
+  );
 }
 
 function watchlistBtnHtml(data) {
