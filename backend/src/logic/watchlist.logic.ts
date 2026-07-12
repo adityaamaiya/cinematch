@@ -29,9 +29,9 @@ export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistScored[]>
   ) {}
 
   async execute({ userKey }: WatchlistInput): Promise<WatchlistScored[]> {
-    const [items, affinity] = await Promise.all([
+    const [items, affinities] = await Promise.all([
       Profile.getWatchlist(userKey),
-      Profile.findAffinity(userKey),
+      Profile.findAffinities(userKey),
     ]);
 
     const scored = await Promise.all(
@@ -39,14 +39,22 @@ export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistScored[]>
         const movie = await this.lookup.execute({ title: item.title, year: item.year });
         if (!movie) return null;
         const mediaType = movie.mediaType ?? 'movie';
-        // Unreleased titles have no real rating → no verdict (list shows "Upcoming").
-        const released = movie.released !== false;
-        const { verdict, tasteMatch } = released
-          ? await this.scorer.execute({ movie, affinity })
-          : { verdict: 'Skip' as const, tasteMatch: null };
+        // Credits before scoring so the director/actor signals feed the taste blend (same as /score).
         const credits = await this.creditsCache
           .remember(`${mediaType}:${movie.tmdbId}`, () => this.tmdb.credits(movie.tmdbId, mediaType))
           .catch((): MovieCredits => ({}));
+        // Unreleased titles have no real rating → no verdict (list shows "Upcoming").
+        const released = movie.released !== false;
+        const { verdict, tasteMatch } = released
+          ? await this.scorer.execute({
+              movie,
+              affinity: affinities.genreAffinity,
+              director: credits.director,
+              leadActor: credits.leadActor,
+              directorAffinity: affinities.directorAffinity,
+              actorAffinity: affinities.actorAffinity,
+            })
+          : { verdict: 'Skip' as const, tasteMatch: null };
         return {
           title: item.title,
           year: item.year,
