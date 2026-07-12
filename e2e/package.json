@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test detect.test.mjs && node e2e-popup.mjs",
     "test:popup": "node e2e-popup.mjs",
-    "test:detect": "node --test detect.test.mjs"
+    "test:detect": "node --test detect.test.mjs",
+    "test:hotstar": "node hotstar-detect.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1"
