@@ -24,7 +24,7 @@ export interface Env {
   omdbApiKey: string;
   /** Optional — enables the LLM taste mode. Empty string = disabled (statistical Scorer only). */
   geminiApiKey: string;
-  /** Gemini model id for the taste mode. */
+  /** Gemini model id(s) for the taste mode; comma-separated = fallback chain (own quota each). */
   geminiModel: string;
 }
 
@@ -36,5 +36,5 @@ export const env: Env = {
   syncToken: required('SYNC_TOKEN'),
   omdbApiKey: optional('OMDB_API_KEY', ''),
   geminiApiKey: optional('GEMINI_API_KEY', ''),
-  geminiModel: optional('GEMINI_MODEL', 'gemini-flash-latest'),
+  geminiModel: optional('GEMINI_MODEL', 'gemini-flash-lite-latest,gemini-2.5-flash'),
 };

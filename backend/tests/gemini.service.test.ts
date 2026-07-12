@@ -19,20 +19,25 @@ describe('GeminiService.generate', () => {
     await expect(svc.generate('hi')).rejects.toThrow(/Gemini request failed/);
   });
 
-  it('retries once on a transient 429/503', async () => {
-    vi.useFakeTimers();
-    let call = 0;
-    const fetchMock = vi.fn(async () =>
-      (++call === 1
-        ? { ok: false, status: 503, json: async () => ({}) }
-        : { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }) }) as Response,
-    );
-    vi.stubGlobal('fetch', fetchMock);
-    const p = svc.generate('hi');
-    await vi.advanceTimersByTimeAsync(1500);
-    expect(await p).toBe('ok');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
+  it('falls through to the next model on a transient 429/503', async () => {
+    const chain = new GeminiService('k', 'model-a,model-b', new Logger('test'));
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      urls.push(url);
+      return (url.includes('model-a')
+        ? { ok: false, status: 429, json: async () => ({}) }
+        : { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }) }) as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+    expect(await chain.generate('hi')).toBe('ok');
+    expect(urls[0]).toContain('model-a');
+    expect(urls[1]).toContain('model-b');
+  });
+
+  it('throws only when every model in the chain is exhausted', async () => {
+    const chain = new GeminiService('k', 'model-a,model-b', new Logger('test'));
+    vi.stubGlobal('fetch', mockFetch(429, {}));
+    await expect(chain.generate('hi')).rejects.toThrow(/Gemini request failed/);
   });
 
   it('throws when the model returns no text', async () => {

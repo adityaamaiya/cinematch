@@ -85,10 +85,16 @@ Cutoffs are tuned to the profile's own spread (see `scripts/calibrate-affinity.t
 taste line, verdict only.
 
 **LLM taste mode (optional).** Set a `GEMINI_API_KEY` and the taste line is produced instead by
-Gemini reasoning over your rating history — matching on *tone, themes, and director/cast patterns*,
-not just genre/name overlap. It flags a Korean psychological thriller as "🔥 peak you" because you
-loved Parasite and Memories of Murder, and writes a one-line *why*. Cached per title; falls back to
-the statistical signal on any error, so it never blocks a score. The objective verdict is untouched.
+Gemini reasoning over a **precomputed taste profile** (`backend/taste-profile.md` — a compact prose
+summary of your ratings: favourite directors/genres, the tone/structure/pacing you gravitate to, and
+explicit turn-offs). Analysing the profile once, offline, keeps every `/score` prompt small and fast
+— versus stuffing hundreds of raw ratings into each call. It matches on *tone, themes, and
+director/cast patterns*, not just genre/name overlap, and returns a **match score + one-line why**
+(e.g. `🔥 98% match — mind-bending Nolan sci-fi with the tight screenplay you love`). Constrained
+JSON decoding keeps replies well-formed. Cached per title (6h). `GEMINI_MODEL` can be a
+**comma-separated fallback chain** — each free model has its own daily quota, so on a `429`/`503` the
+next model is tried; when all are exhausted it falls back to the statistical signal, so it never
+blocks a score. The objective verdict is untouched.
 
 **Same-name titles.** When several films share a title, an on-page year decides. With no year, the
 tie is broken by **language priority** — the languages you actually watch most, learned from your
@@ -128,7 +134,7 @@ npm test                  # vitest
 | `SYNC_TOKEN` | Bearer secret guarding `POST /sync-profile`. |
 | `OMDB_API_KEY` | Optional — enables the awards + IMDb line ([free key](https://www.omdbapi.com/apikey.aspx)). |
 | `GEMINI_API_KEY` | Optional — enables the LLM taste mode ([free key](https://aistudio.google.com/apikey)). Empty → statistical taste only. |
-| `GEMINI_MODEL` | Gemini model for the taste mode (default `gemini-flash-latest`). |
+| `GEMINI_MODEL` | Gemini model(s) for the taste mode; comma-separated = fallback chain, each tried in order on quota errors (default `gemini-flash-lite-latest,gemini-2.5-flash`). |
 | `BACKEND_URL` | Only for `npm run seed` (defaults to `http://localhost:$PORT`). |
 
 Real `.env` files are gitignored; commit only `.env.example`.

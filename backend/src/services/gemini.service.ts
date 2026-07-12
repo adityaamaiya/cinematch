@@ -10,27 +10,38 @@ interface GeminiResponse {
 }
 
 export class GeminiService implements IGeminiService {
+  private readonly models: string[];
+
   constructor(
     private readonly apiKey: string,
-    private readonly model: string,
+    // One or more model ids, tried in order. Each free model has its own daily quota, so a chain
+    // (e.g. flash-lite → flash) multiplies capacity: on 429/503 we drop to the next model.
+    models: string | string[],
     private readonly logger: ILogger,
-  ) {}
-
-  // Send a prompt, return the model's text. `json` asks the model for a JSON body (response mime);
-  // `schema` turns on constrained decoding so the reply can't be malformed JSON. 429/503 are
-  // transient (free-tier rate limit / overload) — retried once after a short backoff.
-  async generate(prompt: string, json = false, schema?: object): Promise<string> {
-    try {
-      return await this.request(prompt, json, schema);
-    } catch (err) {
-      if (!(err instanceof AppError && /\((429|503)\)/.test(err.message))) throw err;
-      await new Promise((r) => setTimeout(r, 1200));
-      return this.request(prompt, json, schema);
-    }
+  ) {
+    const list = (Array.isArray(models) ? models : models.split(',')).map((m) => m.trim()).filter(Boolean);
+    this.models = list.length ? list : ['gemini-flash-lite-latest'];
   }
 
-  private async request(prompt: string, json: boolean, schema?: object): Promise<string> {
-    const url = `${BASE}/models/${this.model}:generateContent?key=${this.apiKey}`;
+  // Send a prompt, return the model's text. `json` asks the model for a JSON body (response mime);
+  // `schema` turns on constrained decoding so the reply can't be malformed JSON. On a transient
+  // 429/503 (quota exhausted / overload) we fall through to the next model in the chain; only when
+  // every model is exhausted do we throw — then ScoreLogic falls back to the statistical line.
+  async generate(prompt: string, json = false, schema?: object): Promise<string> {
+    let lastErr: unknown;
+    for (const model of this.models) {
+      try {
+        return await this.request(model, prompt, json, schema);
+      } catch (err) {
+        if (!(err instanceof AppError && /\((429|503)\)/.test(err.message))) throw err;
+        lastErr = err; // quota/overload — try the next model
+      }
+    }
+    throw lastErr;
+  }
+
+  private async request(model: string, prompt: string, json: boolean, schema?: object): Promise<string> {
+    const url = `${BASE}/models/${model}:generateContent?key=${this.apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -47,7 +58,7 @@ export class GeminiService implements IGeminiService {
       }),
     });
     if (!res.ok) {
-      this.logger.warn(`Gemini ${this.model} failed`, res.status);
+      this.logger.warn(`Gemini ${model} failed`, res.status);
       throw AppError.upstream(`Gemini request failed (${res.status})`);
     }
     const data = (await res.json()) as GeminiResponse;
