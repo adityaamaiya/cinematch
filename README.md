@@ -15,18 +15,18 @@ you've rated highly.
 ## Screenshots
 
 <p>
-  <img src="docs/media/p1-score.png" width="252" alt="Verdict + taste line" />
-  <img src="docs/media/p2-watch.png" width="252" alt="Pinned meter, scrolled to where-to-watch" />
-  <img src="docs/media/p4-mismatch.png" width="252" alt="Not your usual vibe" />
+  <img src="docs/media/p1-score.webp" width="252" alt="Verdict + taste line" />
+  <img src="docs/media/p2-watch.webp" width="252" alt="Pinned meter, scrolled to where-to-watch" />
+  <img src="docs/media/p4-mismatch.webp" width="252" alt="Not your usual vibe" />
 </p>
 
 On any movie page — here the popup open on a Prime Video title:
 
-<img src="docs/media/fs-prime.png" width="760" alt="CineMatch popup on a Prime Video page" />
+<img src="docs/media/fs-prime.webp" width="760" alt="CineMatch popup on a Prime Video page" />
 
 **Demo** — score → scroll to where-to-watch → search → taste variants → mood → light theme:
 
-![CineMatch demo](docs/media/demo.gif)
+![CineMatch demo](docs/media/demo.webp)
 
 ---
 
