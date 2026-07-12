@@ -17,8 +17,19 @@ export class GeminiService implements IGeminiService {
   ) {}
 
   // Send a prompt, return the model's text. `json` asks the model for a JSON body (response mime);
-  // `schema` turns on constrained decoding so the reply can't be malformed JSON.
+  // `schema` turns on constrained decoding so the reply can't be malformed JSON. 429/503 are
+  // transient (free-tier rate limit / overload) — retried once after a short backoff.
   async generate(prompt: string, json = false, schema?: object): Promise<string> {
+    try {
+      return await this.request(prompt, json, schema);
+    } catch (err) {
+      if (!(err instanceof AppError && /\((429|503)\)/.test(err.message))) throw err;
+      await new Promise((r) => setTimeout(r, 1200));
+      return this.request(prompt, json, schema);
+    }
+  }
+
+  private async request(prompt: string, json: boolean, schema?: object): Promise<string> {
     const url = `${BASE}/models/${this.model}:generateContent?key=${this.apiKey}`;
     const res = await fetch(url, {
       method: 'POST',

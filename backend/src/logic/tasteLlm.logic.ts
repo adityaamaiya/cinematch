@@ -26,9 +26,10 @@ const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     level: { type: 'STRING', enum: ['strong', 'mild', 'mismatch', 'none'] },
+    score: { type: 'INTEGER' },
     why: { type: 'STRING' },
   },
-  required: ['level', 'why'],
+  required: ['level', 'score', 'why'],
 } as const;
 
 export class LlmTaste implements ILogic<LlmTasteInput, TasteMatch | null> {
@@ -62,15 +63,15 @@ New title: ${meta}
 
 Reason about tone, themes, structure, and director/cast patterns — not just genre. Then respond with
 ONLY a JSON object, no prose:
-{"level": "strong" | "mild" | "mismatch" | "none", "why": "<one short second-person sentence>"}
-strong = they'll love it · mild = they'll probably like it · mismatch = not their taste · none = genuinely unsure.`;
+{"level": "strong" | "mild" | "mismatch" | "none", "score": <0-100 how well it matches their taste>, "why": "<one short second-person sentence>"}
+strong = they'll love it (score ≥75) · mild = they'll probably like it (score 50-74) · mismatch = not their taste (score <50) · none = genuinely unsure.`;
   }
 
   // Parse the model's JSON. "none" → no taste line (null, cacheable). Malformed → throw: that's an
   // upstream fault, so ScoreLogic falls back to the statistical line and retries on the next request
   // instead of caching an empty answer for 6h.
   private parse(raw: string): TasteMatch | null {
-    let obj: { level?: string; why?: string };
+    let obj: { level?: string; score?: number; why?: string };
     try {
       obj = JSON.parse(raw.trim().replace(/^```json\s*|\s*```$/g, ''));
     } catch {
@@ -79,7 +80,13 @@ strong = they'll love it · mild = they'll probably like it · mismatch = not th
     const level = obj.level;
     if (typeof level !== 'string' || !LEVELS.has(level)) return null;
     const why = typeof obj.why === 'string' && obj.why.trim() ? obj.why.trim() : null;
+    const score =
+      typeof obj.score === 'number' && obj.score >= 0 && obj.score <= 100
+        ? Math.round(obj.score)
+        : null;
     const l = level as TasteMatchLevel;
-    return { level: l, message: why ? `${EMOJI[l]} ${why}` : EMOJI[l] };
+    // "🔥 92% match — <why>"; degrade gracefully when score or why is missing.
+    const parts = [score !== null ? `${score}% match` : '', why ?? ''].filter(Boolean).join(' — ');
+    return { level: l, message: parts ? `${EMOJI[l]} ${parts}` : EMOJI[l] };
   }
 }

@@ -14,9 +14,25 @@ describe('GeminiService.generate', () => {
     expect(await svc.generate('hi')).toBe('hello');
   });
 
-  it('throws on an upstream failure', async () => {
-    vi.stubGlobal('fetch', mockFetch(429, {}));
+  it('throws on a non-retryable upstream failure', async () => {
+    vi.stubGlobal('fetch', mockFetch(500, {}));
     await expect(svc.generate('hi')).rejects.toThrow(/Gemini request failed/);
+  });
+
+  it('retries once on a transient 429/503', async () => {
+    vi.useFakeTimers();
+    let call = 0;
+    const fetchMock = vi.fn(async () =>
+      (++call === 1
+        ? { ok: false, status: 503, json: async () => ({}) }
+        : { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }) }) as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const p = svc.generate('hi');
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(await p).toBe('ok');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it('throws when the model returns no text', async () => {
