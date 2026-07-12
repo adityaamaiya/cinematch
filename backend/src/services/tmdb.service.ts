@@ -88,12 +88,17 @@ export class TmdbService implements ITmdbService {
     preferredLanguages: string[] = [],
   ): TmdbSearchItem | null {
     if (items.length === 0) return null;
-    const wanted = title.trim().toLowerCase();
+    // Normalise punctuation before comparing: a URL slug ("avengers endgame") never carries the
+    // colon/hyphen/apostrophe the real title has ("Avengers: Endgame"), which used to fail the gate
+    // and return null even though TMDB found the film. Apostrophes vanish ("don't"→"dont"), every
+    // other non-alphanumeric becomes a space ("spider-man"→"spider man", matching the slug's).
+    const norm = (s: string) => s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    const wanted = norm(title);
     const nameMatches = (name: string) =>
       name === wanted || name.includes(wanted) || wanted.includes(name);
     const scored = items
       .map((item) => {
-        const name = (item.title ?? item.name ?? '').toLowerCase();
+        const name = norm(item.title ?? item.name ?? '');
         const itemYear = this.adapter.yearOf(item);
         let score = 0;
         if (name === wanted) score += 100;

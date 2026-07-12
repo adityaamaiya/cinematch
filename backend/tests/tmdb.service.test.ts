@@ -108,6 +108,27 @@ describe('TmdbService.searchTitle', () => {
     expect(movie?.tmdbId).toBe(2);
   });
 
+  it('matches a punctuation-stripped slug against the real title (avengers endgame → Avengers: Endgame)', async () => {
+    // Hotstar SPA nav gives the fresh URL slug ("avengers endgame") but no colon; the confidence
+    // gate used to reject the (correct) TMDB hit over that missing colon and return null.
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        ...GENRE_ROUTES,
+        '/search/multi': {
+          body: {
+            results: [
+              { id: 299534, media_type: 'movie', title: 'Avengers: Endgame', popularity: 50, genre_ids: [28] },
+            ],
+          },
+        },
+      }),
+    );
+    const movie = await service.searchTitle('avengers endgame');
+    expect(movie?.tmdbId).toBe(299534);
+    expect(movie?.title).toBe('Avengers: Endgame');
+  });
+
   it('prefers a preferred-language title over a more popular other-language one (same name)', async () => {
     vi.stubGlobal(
       'fetch',
