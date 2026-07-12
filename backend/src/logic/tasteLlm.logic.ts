@@ -1,17 +1,17 @@
-// LLM taste mode: predict how THIS user would rate a film by reasoning over their rating history
-// (tone, themes, director/cast patterns) — richer than the name-only statistical Scorer. Optional;
-// ScoreLogic falls back to the Scorer when Gemini is unconfigured or errors.
+// LLM taste mode: predict how THIS user would rate a film by reasoning over a precomputed taste
+// profile (tone, themes, director/cast patterns) — richer than the name-only statistical Scorer.
+// The profile is a compact prose summary of their rating history (backend/taste-profile.md),
+// analysed offline so every /score prompt stays small. Optional; ScoreLogic falls back to the
+// Scorer when Gemini is unconfigured or errors.
 import type {
   IGeminiService,
   ILogic,
-  RatedMovie,
   TasteMatch,
   TasteMatchLevel,
   TmdbMovie,
 } from '../types/index.js';
 
 export interface LlmTasteInput {
-  ratedMovies: RatedMovie[];
   movie: TmdbMovie;
   director?: string;
   leadActor?: string;
@@ -19,29 +19,19 @@ export interface LlmTasteInput {
 
 const EMOJI: Record<TasteMatchLevel, string> = { strong: '🔥', mild: '✨', mismatch: '🥴' };
 const LEVELS = new Set(['strong', 'mild', 'mismatch']);
-// Ratings are grouped by verdict in this order; the loved/disliked extremes carry the most signal.
-const VERDICT_ORDER: RatedMovie['verdict'][] = ['Perfection', 'Go For It', 'Timepass', 'Skip'];
 
 export class LlmTaste implements ILogic<LlmTasteInput, TasteMatch | null> {
-  constructor(private readonly gemini: IGeminiService) {}
+  constructor(
+    private readonly gemini: IGeminiService,
+    private readonly profile: string,
+  ) {}
 
   async execute(input: LlmTasteInput): Promise<TasteMatch | null> {
-    if (input.ratedMovies.length === 0) return null;
     const raw = await this.gemini.generate(this.prompt(input), true);
     return this.parse(raw);
   }
 
-  private prompt({ ratedMovies, movie, director, leadActor }: LlmTasteInput): string {
-    const byVerdict = VERDICT_ORDER.map((v) => {
-      const titles = ratedMovies
-        .filter((m) => m.verdict === v)
-        .map((m) => (m.year ? `${m.title} (${m.year})` : m.title))
-        .join(', ');
-      return titles ? `${v}: ${titles}` : '';
-    })
-      .filter(Boolean)
-      .join('\n');
-
+  private prompt({ movie, director, leadActor }: LlmTasteInput): string {
     const meta = [
       `"${movie.title}"${movie.year ? ` (${movie.year})` : ''}`,
       movie.mediaType === 'tv' ? 'TV show' : 'movie',
@@ -52,11 +42,10 @@ export class LlmTaste implements ILogic<LlmTasteInput, TasteMatch | null> {
       .filter(Boolean)
       .join(', ');
 
-    return `You predict whether one specific user will enjoy a film, from their rating history.
-They rate on four levels: Perfection (loved), Go For It (liked), Timepass (meh), Skip (disliked).
+    return `You predict whether one specific viewer will enjoy a title, from their taste profile.
 
-Their ratings:
-${byVerdict}
+Their taste profile:
+${this.profile}
 
 New title: ${meta}
 

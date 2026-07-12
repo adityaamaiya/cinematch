@@ -44,8 +44,6 @@ interface ProfileModel extends Model<ProfileDoc> {
   findAffinities(userKey: string): Promise<Affinities>;
   /** Return the user's most-watched-first language list, or [] if no profile. */
   findLanguagePriority(userKey: string): Promise<string[]>;
-  /** Return the user's rated movies (for the LLM taste mode), or [] if no profile. */
-  getRatedMovies(userKey: string): Promise<RatedMovie[]>;
   /** Add a title to the watchlist (idempotent by title+year). Creates the profile if absent. */
   addToWatchlist(userKey: string, item: WatchlistMovie): Promise<void>;
   /** Remove a title from the watchlist by title+year. */
@@ -127,11 +125,6 @@ profileSchema.static(
     return (doc?.languagePriority as string[] | undefined) ?? [];
   },
 );
-
-profileSchema.static('getRatedMovies', async function getRatedMovies(this: ProfileModel, userKey) {
-  const doc = await this.findOne({ userKey }, { ratedMovies: 1 }).lean().exec();
-  return (doc?.ratedMovies as RatedMovie[] | undefined) ?? [];
-});
 
 profileSchema.static(
   'addToWatchlist',

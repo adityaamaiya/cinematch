@@ -4,7 +4,6 @@ import type {
   ITmdbService,
   MovieCredits,
   OmdbInfo,
-  RatedMovie,
   ScoreResult,
   TasteMatch,
   WatchInfo,
@@ -59,8 +58,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     const mediaType = movie.mediaType ?? 'movie';
     const cacheKey = `${mediaType}:${movie.tmdbId}`;
     const omdbKey = `${movie.title.toLowerCase()}|${movie.year ?? ''}`;
-    const [affinities, watch, officialTrailer, credits, omdb, onWatchlist, ratedMovies] =
-      await Promise.all([
+    const [affinities, watch, officialTrailer, credits, omdb, onWatchlist] = await Promise.all([
       Profile.findAffinities(input.userKey),
       this.watchCache
         .remember(`${cacheKey}:${WATCH_COUNTRY}`, () =>
@@ -75,9 +73,6 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
         .catch((): MovieCredits => ({})),
       this.omdbCache.remember(omdbKey, () => this.omdb.lookup(movie.title, movie.year)).catch(() => null),
       Profile.isOnWatchlist(input.userKey, movie.title, movie.year).catch(() => false),
-      this.llmTaste
-        ? Profile.getRatedMovies(input.userKey).catch(() => [] as RatedMovie[])
-        : Promise.resolve([] as RatedMovie[]),
     ]);
 
     // Unreleased titles have no real rating yet → no verdict/taste; the popup shows the date instead.
@@ -98,11 +93,10 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     // Taste line: prefer the LLM's reasoning when configured; fall back to the statistical result on
     // any error (and cache per title so repeat views don't re-hit Gemini). Verdict stays objective.
     let tasteMatch = scored.tasteMatch;
-    if (released && this.llmTaste && ratedMovies.length) {
+    if (released && this.llmTaste) {
       tasteMatch = await this.tasteCache
         .remember(`${cacheKey}:llm`, () =>
           this.llmTaste!.execute({
-            ratedMovies,
             movie,
             director: credits.director,
             leadActor: credits.leadActor,

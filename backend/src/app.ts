@@ -28,6 +28,8 @@ export interface AppDeps {
   syncToken: string;
   /** Optional — enables the LLM taste mode. Absent → statistical Scorer only. */
   gemini?: IGeminiService;
+  /** Precomputed taste-profile prose (taste-profile.md). LLM taste needs both this and gemini. */
+  tasteProfile?: string;
   logger?: ILogger;
 }
 
@@ -43,7 +45,10 @@ export function createApp(deps: AppDeps): Express {
   // --- wire dependencies (interface → concrete, one place) ---
   const scorer = new Scorer();
   const lookup = new MovieLookup(deps.tmdb, logger);
-  const llmTaste = deps.gemini ? new LlmTaste(deps.gemini) : undefined;
+  const llmTaste =
+    deps.gemini && deps.tasteProfile?.trim()
+      ? new LlmTaste(deps.gemini, deps.tasteProfile)
+      : undefined;
   const scoreController = new ScoreController(
     new ScoreLogic(lookup, scorer, deps.tmdb, deps.omdb, llmTaste),
   );

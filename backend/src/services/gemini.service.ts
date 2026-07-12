@@ -28,7 +28,7 @@ export class GeminiService implements IGeminiService {
         // tokens reasoning before emitting, so a tight budget yields an empty MAX_TOKENS reply.
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 800,
+          maxOutputTokens: 2048,
           ...(json ? { responseMimeType: 'application/json' } : {}),
         },
       }),
