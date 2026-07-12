@@ -16,7 +16,8 @@ personal watchlist. Backed by a layered TypeScript + Express API on MongoDB, rea
 
 ## Backend conventions
 - `tsconfig.json` = editor + `npm run typecheck` (includes src+scripts+tests, no emit). `tsconfig.build.json` = `npm run build` (emits `dist/index.js`; **must stay `dist/index.js`** — pm2/CI expect it).
-- Third-party clients are services (`TmdbService`, `OmdbService`); DB via model statics (`Profile`, `ScoreCache`). Extras (watch/trailer/credits/omdb) are cached in-memory via `TtlCache` and must **never break a score** (each wrapped in `.catch`).
+- Layers: **route → controller → logic → service/adapter → model**. Each `logic/` file is one `ILogic` class (`execute()` is the only entry; everything else a private method). Services (`TmdbService`, `OmdbService`) are HTTP-only; **adapters** (`IAdapter<Raw,Out>`, `adapt()`) own response→domain shaping in `adapters/`. Shared pure helpers go in `lib/` (e.g. `lib/affinity.ts`), not inside a class file. DB via model statics (`Profile`, `ScoreCache`).
+- Extras (watch/trailer/credits/omdb) are cached in-memory via `TtlCache` and must **never break a score** (each wrapped in `.catch`).
 - Public endpoints (`/score`, `/recommend`, `/watchlist`) are rate-limited (`rateLimit` middleware, 60/min/IP). `/sync-profile` needs `SYNC_TOKEN`.
 - Env: `TMDB_*`, `MONGODB_URI`, `SYNC_TOKEN` required; `OMDB_API_KEY` optional (awards degrade to omitted).
 

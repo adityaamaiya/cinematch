@@ -25,9 +25,10 @@ you've rated highly.
                                           verdict + taste-match ◀┘  ──▶ gauge in popup
 ```
 
-The popup also shows the **director + lead actor**, an **awards** line + **IMDb rating** (via OMDb),
-and an **＋ Add to watchlist** button. Your taste profile is loaded once by seeding a JSON file (see
-[Add a taste profile](#add-a-taste-profile)).
+The popup also shows the **director + lead actor**, **awards**, and cross-site ratings with vote
+counts — **TMDB · IMDb · Rotten Tomatoes · Metacritic** (via OMDb) — plus an **＋ Add to watchlist**
+button and a taste-ranked **My watchlist**. Your taste profile is loaded once by seeding a JSON file
+(see [Add a taste profile](#add-a-taste-profile)).
 
 ## Repo layout
 
@@ -41,11 +42,12 @@ and an **＋ Add to watchlist** button. Your taste profile is loaded once by see
 ### Backend architecture
 - **route** — maps a path to a controller method (thin).
 - **controller** — class; validates input with Zod, calls a logic class, returns an `ApiResponse<T>` with the right status. No business logic.
-- **logic** — class implementing `ILogic<I,O>` with `execute()`. One per operation (`ScoreLogic`, `RecommendLogic`, `SyncProfileLogic`), plus the pure `Scorer` and shared `MovieLookup`.
-- **service** — third-party API clients only (`TmdbService`). Not for DB.
+- **logic** — class implementing `ILogic<I,O>` with `execute()` as the single entry (everything else a private method). One per operation (`ScoreLogic`, `RecommendLogic`, `SyncProfileLogic`, `WatchlistLogic`), plus the pure `Scorer` and shared `MovieLookup`.
+- **service** — third-party HTTP clients only (`TmdbService`, `OmdbService`): fetch + auth, no shaping, no DB.
+- **adapter** — class implementing `IAdapter<Raw,Out>` with `adapt()`; maps a raw third-party response to our domain type (`TmdbAdapter`, `OmdbAdapter`). Keeps services thin.
 - **model** — Mongoose model + static functions for all DB access (`Profile`, `ScoreCache`).
 
-Everything is wired in one composition root (`src/app.ts`) and depends on interfaces, so it's easy to swap/mock.
+Shared pure helpers live in `lib/` (e.g. `lib/affinity.ts`). Everything is wired in one composition root (`src/app.ts`) and depends on interfaces, so it's easy to swap/mock.
 
 ## Scoring
 
