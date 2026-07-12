@@ -1,3 +1,5 @@
+<img src="extension/icons/icon-128.png" width="84" align="right" alt="CineMatch icon" />
+
 # CineMatch 🎬
 
 > A Chrome extension that answers one question on any movie/show page: **should you watch it?**
@@ -9,6 +11,22 @@ The verdict (the meter) is **objective** — it comes straight from the TMDB rat
 altered. Personalisation is a **separate** attention-grabbing line ("🔥 Peak you — exactly your
 taste") derived from how the title's **genres, director, and lead actor** line up with the films
 you've rated highly.
+
+## Screenshots
+
+<p>
+  <img src="docs/media/p1-score.png" width="252" alt="Verdict + taste line" />
+  <img src="docs/media/p2-watch.png" width="252" alt="Pinned meter, scrolled to where-to-watch" />
+  <img src="docs/media/p4-mismatch.png" width="252" alt="Not your usual vibe" />
+</p>
+
+On any movie page — here the popup open on a Prime Video title:
+
+<img src="docs/media/fs-prime.png" width="760" alt="CineMatch popup on a Prime Video page" />
+
+**Demo** — score → scroll to where-to-watch → search → taste variants → mood → light theme:
+
+![CineMatch demo](docs/media/demo.gif)
 
 ---
 
@@ -161,3 +179,7 @@ JSON or adapt the importer to your source — the backend and the profile API st
 ## Tech
 
 Vanilla JS (MV3) · Node 20 · Express · TypeScript · Mongoose · Zod · Playwright · vitest.
+
+## License
+
+[MIT](LICENSE) © Aditya Amaiya.
