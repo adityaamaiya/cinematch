@@ -45,21 +45,18 @@ function color(verdict) {
   return `var(${VERDICT_VAR[verdict] || '--muted'})`;
 }
 
-// Semicircle gauge filled to rating/10, coloured by verdict.
-function gaugeSvg(rating, verdict) {
-  const r = 110;
-  const len = Math.PI * r; // semicircle arc length
-  const frac = Math.max(0, Math.min(1, rating / 10));
-  const path = `M 20 130 A ${r} ${r} 0 0 1 240 130`;
-  return `
-    <svg id="gauge" width="260" height="150" viewBox="0 0 260 150">
-      <path d="${path}" fill="none" stroke="var(--track)" stroke-width="18" stroke-linecap="round" />
-      <path d="${path}" fill="none" stroke="${color(verdict)}" stroke-width="18" stroke-linecap="round"
-            stroke-dasharray="${frac * len} ${len}" />
-      <text x="130" y="118" text-anchor="middle" font-size="34" font-weight="700" fill="${color(verdict)}">
-        ${rating.toFixed(1)}
-      </text>
-    </svg>`;
+// Big rating number, coloured by verdict. (Replaced the semicircle gauge — a bare arc isn't a real
+// donut chart, so it added nothing over just the number + verdict.)
+function scoreNum(rating, verdict) {
+  return `<div id="score-num" class="score-num" style="color:${color(verdict)}">${rating.toFixed(1)}</div>`;
+}
+
+// The personalised taste line (LLM "% match — why", or the statistical level message). Shown on the
+// verdict view AND the "Not out yet" / "Too new" views — taste doesn't need a rating to exist.
+function tasteHtml(data) {
+  return data.tasteMatch
+    ? `<div class="taste ${data.tasteMatch.level}">${escapeHtml(data.tasteMatch.message)}</div>`
+    : '';
 }
 
 function legendHtml() {
@@ -198,6 +195,7 @@ function renderStatus(data, status) {
         ${ratingsLine(data)}
       </div>
     </div>
+    ${tasteHtml(data)}
     ${creditsHtml(data)}
     ${trailerHtml(data.trailerUrl)}
     ${watchlistBtnHtml(data)}`;
@@ -222,23 +220,20 @@ function renderScore(data) {
     return renderStatus(data, { headline: '🆕 Too new', sub: 'Not enough ratings yet' });
   }
 
-  const taste = data.tasteMatch
-    ? `<div class="taste ${data.tasteMatch.level}">${data.tasteMatch.message}</div>`
-    : '';
   view.innerHTML = `
     <div class="hero">
       ${posterHtml(data.posterUrl)}
       <div class="hero-main">
-        ${gaugeSvg(data.tmdbRating, data.verdict)}
+        ${scoreNum(data.tmdbRating, data.verdict)}
         <div class="verdict" style="color:${color(data.verdict)}">${data.verdict}</div>
         ${titleLine(data)}
         ${ratingsLine(data)}
+        ${legendHtml()}
       </div>
     </div>
     ${creditsHtml(data)}
-    ${taste}
+    ${tasteHtml(data)}
     ${awardsHtml(data)}
-    ${legendHtml()}
     ${trailerHtml(data.trailerUrl)}
     ${watchlistBtnHtml(data)}
     ${watchHtml(data.watch)}`;

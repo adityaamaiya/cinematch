@@ -92,8 +92,10 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
 
     // Taste line: prefer the LLM's reasoning when configured; fall back to the statistical result on
     // any error (and cache per title so repeat views don't re-hit Gemini). Verdict stays objective.
+    // Computed even for unreleased/unrated titles — the model predicts taste from story/director/cast,
+    // which doesn't need a rating to exist yet ("you'll love this upcoming Nolan film").
     let tasteMatch = scored.tasteMatch;
-    if (released && this.llmTaste) {
+    if (this.llmTaste) {
       tasteMatch = await this.tasteCache
         .remember(`${cacheKey}:llm`, () =>
           this.llmTaste!.execute({

@@ -58,7 +58,7 @@ async function main() {
   await page.goto(popupPath);
 
   // Gauge + verdict from the detected title.
-  await page.waitForSelector('#gauge', { timeout: 5000 });
+  await page.waitForSelector('#score-num', { timeout: 5000 });
   assert.strictEqual((await page.locator('.verdict').innerText()).trim(), 'Perfection', 'verdict renders');
 
   // Trailer button links to YouTube.
@@ -103,7 +103,8 @@ async function main() {
   );
   await page.goto(popupPath);
   await page.waitForFunction(() => document.body.innerText.includes('Too new'), { timeout: 5000 });
-  assert.ok(!(await page.locator('#gauge').count()), 'unrated title shows no gauge/verdict');
+  assert.ok(!(await page.locator('#score-num').count()), 'unrated title shows no score number/verdict');
+  assert.ok(await page.locator('.taste').count(), 'unrated title still shows the taste line');
 
   // Regression: a content script that answers with NO title (e.g. Google with no panel) → manual
   // search, and must NOT re-inject content.js (double-inject throws "detectors already declared").
