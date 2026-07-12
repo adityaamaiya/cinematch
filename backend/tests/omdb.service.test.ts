@@ -11,10 +11,30 @@ function mockFetch(body: unknown, ok = true) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('OmdbService', () => {
-  it('returns awards + imdbRating on a hit', async () => {
-    vi.stubGlobal('fetch', mockFetch({ Response: 'True', Awards: 'Won 4 Oscars.', imdbRating: '8.8' }));
+  it('returns awards, imdb rating/votes, RT + metascore on a hit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        Response: 'True',
+        Awards: 'Won 4 Oscars.',
+        imdbRating: '8.8',
+        imdbVotes: '2,547,891',
+        Metascore: '74',
+        Ratings: [
+          { Source: 'Internet Movie Database', Value: '8.8/10' },
+          { Source: 'Rotten Tomatoes', Value: '87%' },
+          { Source: 'Metacritic', Value: '74/100' },
+        ],
+      }),
+    );
     const svc = new OmdbService('key', logger);
-    expect(await svc.lookup('Inception', 2010)).toEqual({ awards: 'Won 4 Oscars.', imdbRating: '8.8' });
+    expect(await svc.lookup('Inception', 2010)).toEqual({
+      awards: 'Won 4 Oscars.',
+      imdbRating: '8.8',
+      imdbVotes: '2,547,891',
+      rottenTomatoes: '87%',
+      metascore: '74',
+    });
   });
 
   it('is a no-op (no fetch) when the api key is empty', async () => {

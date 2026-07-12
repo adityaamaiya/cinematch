@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAffinities, rankLanguages, type RatedSignals } from '../src/logic/syncProfile.logic.js';
+import { buildAffinities, rankLanguages, type RatedSignals } from '../src/lib/affinity.js';
 
 // weight: Skip 1 … Perfection 4. buildAffinities = per-key mean weight − overall mean, with
 // min-samples guards (genre ≥3, person ≥2).

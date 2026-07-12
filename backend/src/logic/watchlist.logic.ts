@@ -18,7 +18,6 @@ export interface WatchlistInput {
 
 // Sort key: strong > mild > (none) > mismatch, then higher TMDB rating.
 const LEVEL_RANK: Record<TasteMatchLevel, number> = { strong: 3, mild: 2, mismatch: 0 };
-const rankOf = (level: TasteMatchLevel | undefined) => (level ? LEVEL_RANK[level] : 1);
 
 export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistScored[]> {
   private readonly creditsCache = new TtlCache<MovieCredits>(6 * 60 * 60 * 1000);
@@ -66,7 +65,12 @@ export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistScored[]>
       .filter((s): s is WatchlistScored => s !== null)
       .sort(
         (a, b) =>
-          rankOf(b.tasteMatch?.level) - rankOf(a.tasteMatch?.level) || b.tmdbRating - a.tmdbRating,
+          this.rankOf(b.tasteMatch?.level) - this.rankOf(a.tasteMatch?.level) ||
+          b.tmdbRating - a.tmdbRating,
       );
+  }
+
+  private rankOf(level: TasteMatchLevel | undefined): number {
+    return level ? LEVEL_RANK[level] : 1;
   }
 }

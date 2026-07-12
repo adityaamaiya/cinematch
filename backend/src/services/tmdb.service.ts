@@ -1,40 +1,19 @@
-// TMDB HTTP client. Pure third-party adapter — no DB, no caching (that lives in the logic layer).
-// Auth is the v4 read-access token, sent as a Bearer header on every call.
-import type {
-  ILogger,
-  ITmdbService,
-  MovieCredits,
-  TmdbMovie,
-  WatchInfo,
-  WatchProvider,
-} from '../types/index.js';
+// TMDB HTTP client. Owns the network call, auth, candidate selection (pickBest) and the memoized
+// genre map; TmdbAdapter owns all response→domain shaping. Auth is the v4 read-access token, sent
+// as a Bearer header on every call.
+import type { ILogger, ITmdbService, MovieCredits, TmdbMovie, WatchInfo } from '../types/index.js';
 import { AppError } from '../lib/errors.js';
-
-const IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
-const LOGO_BASE = 'https://image.tmdb.org/t/p/w92';
-
-interface TmdbProvider {
-  provider_name: string;
-  logo_path?: string | null;
-}
-
-interface TmdbSearchItem {
-  id: number;
-  media_type?: 'movie' | 'tv' | 'person';
-  title?: string; // movie
-  name?: string; // tv
-  release_date?: string; // movie
-  first_air_date?: string; // tv
-  vote_average?: number;
-  vote_count?: number;
-  popularity?: number;
-  genre_ids?: number[];
-  poster_path?: string | null;
-  original_language?: string;
-}
+import {
+  TmdbAdapter,
+  type TmdbCreditsRaw,
+  type TmdbRegion,
+  type TmdbSearchItem,
+  type TmdbVideo,
+} from '../adapters/tmdb.adapter.js';
 
 export class TmdbService implements ITmdbService {
   private genreMap: Map<number, string> | null = null;
+  private readonly adapter = new TmdbAdapter();
 
   constructor(
     private readonly baseUrl: string,
@@ -55,7 +34,8 @@ export class TmdbService implements ITmdbService {
       (r) => r.media_type === 'movie' || r.media_type === 'tv',
     );
     const best = this.pickBest(candidates, title, year, preferredLanguages);
-    return best ? this.toMovie(best) : null;
+    if (!best) return null;
+    return this.adapter.adapt({ item: best, genres: await this.loadGenreMap() });
   }
 
   async discover(genreIds: number[], limit: number): Promise<TmdbMovie[]> {
@@ -65,8 +45,35 @@ export class TmdbService implements ITmdbService {
       'vote_count.gte': '300', // avoid obscure titles with a perfect score from 5 votes
       include_adult: 'false',
     });
-    const items = (data.results ?? []).slice(0, limit);
-    return Promise.all(items.map((i) => this.toMovie({ ...i, media_type: 'movie' })));
+    const genres = await this.loadGenreMap();
+    return (data.results ?? [])
+      .slice(0, limit)
+      .map((item) => this.adapter.adapt({ item: { ...item, media_type: 'movie' }, genres }));
+  }
+
+  // JustWatch-via-TMDB availability for one country. Returns null when TMDB has no data.
+  async watchProviders(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    country: string,
+  ): Promise<WatchInfo | null> {
+    const data = await this.request<{ results?: Record<string, TmdbRegion> }>(
+      `/${mediaType}/${tmdbId}/watch/providers`,
+      {},
+    );
+    return this.adapter.watch(data.results?.[country]);
+  }
+
+  // Best YouTube trailer URL, or undefined.
+  async trailerUrl(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<string | undefined> {
+    const data = await this.request<{ results?: TmdbVideo[] }>(`/${mediaType}/${tmdbId}/videos`, {});
+    return this.adapter.trailer(data.results ?? []);
+  }
+
+  // Director + top-billed actor. Either may be missing (esp. for TV).
+  async credits(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<MovieCredits> {
+    const data = await this.request<TmdbCreditsRaw>(`/${mediaType}/${tmdbId}/credits`, {});
+    return this.adapter.credits(data);
   }
 
   // Prefer an exact title match (then matching year, then preferred language, then popularity).
@@ -87,7 +94,7 @@ export class TmdbService implements ITmdbService {
     const scored = items
       .map((item) => {
         const name = (item.title ?? item.name ?? '').toLowerCase();
-        const itemYear = this.yearOf(item);
+        const itemYear = this.adapter.yearOf(item);
         let score = 0;
         if (name === wanted) score += 100;
         else if (nameMatches(name)) score += 40;
@@ -103,85 +110,6 @@ export class TmdbService implements ITmdbService {
     // instead of a bogus verdict for whatever film TMDB guessed.
     const best = scored[0];
     return best.name && nameMatches(best.name) ? best.item : null;
-  }
-
-  // JustWatch-via-TMDB availability for one country. Returns null when TMDB has no data.
-  async watchProviders(
-    tmdbId: number,
-    mediaType: 'movie' | 'tv',
-    country: string,
-  ): Promise<WatchInfo | null> {
-    const data = await this.request<{
-      results?: Record<
-        string,
-        { link?: string; flatrate?: TmdbProvider[]; rent?: TmdbProvider[]; buy?: TmdbProvider[] }
-      >;
-    }>(`/${mediaType}/${tmdbId}/watch/providers`, {});
-    const region = data.results?.[country];
-    if (!region) return null;
-    const map = (list?: TmdbProvider[]): WatchProvider[] =>
-      (list ?? []).map((p) => ({
-        name: p.provider_name,
-        logoUrl: p.logo_path ? `${LOGO_BASE}${p.logo_path}` : undefined,
-      }));
-    const info: WatchInfo = {
-      link: region.link,
-      flatrate: map(region.flatrate),
-      rent: map(region.rent),
-      buy: map(region.buy),
-    };
-    if (!info.flatrate.length && !info.rent.length && !info.buy.length) return null;
-    return info;
-  }
-
-  // First YouTube trailer (falls back to a teaser) as a watch URL, or undefined.
-  async trailerUrl(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<string | undefined> {
-    const data = await this.request<{
-      results?: { site?: string; type?: string; key?: string; official?: boolean }[];
-    }>(`/${mediaType}/${tmdbId}/videos`, {});
-    const yt = (data.results ?? []).filter((v) => v.site === 'YouTube' && v.key);
-    const best =
-      yt.find((v) => v.type === 'Trailer' && v.official) ??
-      yt.find((v) => v.type === 'Trailer') ??
-      yt.find((v) => v.type === 'Teaser') ??
-      yt[0];
-    return best?.key ? `https://www.youtube.com/watch?v=${best.key}` : undefined;
-  }
-
-  // Director (crew) + top-billed actor (cast order 0). Either may be missing (esp. for TV).
-  async credits(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<MovieCredits> {
-    const data = await this.request<{
-      cast?: { name?: string; order?: number }[];
-      crew?: { name?: string; job?: string }[];
-    }>(`/${mediaType}/${tmdbId}/credits`, {});
-    const director = (data.crew ?? []).find((c) => c.job === 'Director')?.name;
-    const leadActor = [...(data.cast ?? [])].sort((a, b) => (a.order ?? 99) - (b.order ?? 99))[0]?.name;
-    return { director, leadActor };
-  }
-
-  private async toMovie(item: TmdbSearchItem): Promise<TmdbMovie> {
-    const map = await this.loadGenreMap();
-    const releaseDate = item.release_date ?? item.first_air_date ?? undefined;
-    const today = new Date().toISOString().slice(0, 10);
-    return {
-      tmdbId: item.id,
-      mediaType: item.media_type === 'tv' ? 'tv' : 'movie',
-      title: item.title ?? item.name ?? 'Unknown',
-      year: this.yearOf(item),
-      rating: item.vote_average ?? 0,
-      voteCount: item.vote_count,
-      genres: (item.genre_ids ?? []).map((id) => map.get(id)).filter((g): g is string => !!g),
-      language: item.original_language,
-      posterUrl: item.poster_path ? `${IMAGE_BASE}${item.poster_path}` : undefined,
-      releaseDate,
-      released: !!releaseDate && releaseDate <= today,
-    };
-  }
-
-  private yearOf(item: TmdbSearchItem): number | undefined {
-    const date = item.release_date ?? item.first_air_date;
-    const y = date ? Number(date.slice(0, 4)) : NaN;
-    return Number.isFinite(y) ? y : undefined;
   }
 
   // TMDB search returns genre ids only; fetch the id→name maps once (movie + tv) and memoize.

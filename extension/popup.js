@@ -132,10 +132,29 @@ function awardsHtml(data) {
   return data.awards ? `<div class="awards">🏆 ${escapeHtml(data.awards)}</div>` : '';
 }
 
+// Compact vote count: 2547891 → "2.5M", 12000 → "12K", 3 → "3".
+function fmtCount(n) {
+  if (!n || n < 1) return '';
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return Math.round(n / 1e3) + 'K';
+  return String(n);
+}
+
+// "TMDB 8.4 (12K) · IMDb 8.8 (2.5M)". Each source shown only when it has a rating.
 function ratingsLine(data) {
-  const tmdb = `TMDB ${data.tmdbRating.toFixed(1)}`;
-  const imdb = data.imdbRating ? ` · IMDb ${escapeHtml(String(data.imdbRating))}` : '';
-  return `<div class="rating">${tmdb}${imdb}</div>`;
+  const parts = [];
+  if (data.tmdbRating > 0) {
+    const c = fmtCount(data.voteCount);
+    parts.push(`TMDB ${data.tmdbRating.toFixed(1)}${c ? ` (${c})` : ''}`);
+  }
+  if (data.imdbRating) {
+    const votes = data.imdbVotes ? Number(String(data.imdbVotes).replace(/[^0-9]/g, '')) : 0;
+    const c = fmtCount(votes);
+    parts.push(`IMDb ${escapeHtml(String(data.imdbRating))}${c ? ` (${c})` : ''}`);
+  }
+  if (data.rottenTomatoes) parts.push(`🍅 ${escapeHtml(String(data.rottenTomatoes))}`);
+  if (data.metascore) parts.push(`Ⓜ ${escapeHtml(String(data.metascore))}`);
+  return parts.length ? `<div class="rating scores">${parts.join(' · ')}</div>` : '';
 }
 
 function watchlistBtnHtml(data) {
@@ -170,6 +189,7 @@ function renderStatus(data, status) {
         <div class="verdict" style="color:var(--muted)">${status.headline}</div>
         ${titleLine(data)}
         ${status.sub ? `<div class="rating">${status.sub}</div>` : ''}
+        ${ratingsLine(data)}
       </div>
     </div>
     ${creditsHtml(data)}

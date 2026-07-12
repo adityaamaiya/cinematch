@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import 'dotenv/config';
 import { TmdbService } from '../src/services/tmdb.service.js';
 import { Logger } from '../src/lib/logger.js';
-import { buildAffinities, type RatedSignals } from '../src/logic/syncProfile.logic.js';
+import { buildAffinities, type RatedSignals } from '../src/lib/affinity.js';
 import type { RatedMovie, Verdict } from '../src/types/index.js';
 
 const VERDICT_WEIGHT: Record<Verdict, number> = { Skip: 1, Timepass: 2, 'Go For It': 3, Perfection: 4 };

@@ -21,6 +21,13 @@ export interface ILogic<TInput, TOutput> {
   execute(input: TInput): Promise<TOutput>;
 }
 
+// --- Adapter contract (maps a raw third-party response → our domain type) ---
+// Services own the HTTP call; adapters own the response shaping. Single `adapt()` entry.
+
+export interface IAdapter<TRaw, TOut> {
+  adapt(raw: TRaw): TOut;
+}
+
 // --- Domain types ---
 
 /** The 4-point verdict scale (same labels Moctale uses). */
@@ -125,6 +132,12 @@ export interface ScoreResult {
   awards?: string;
   /** IMDb rating string from OMDb (e.g. "8.8"), when available. */
   imdbRating?: string;
+  /** IMDb vote count from OMDb (e.g. "2,547,891"), when available. */
+  imdbVotes?: string;
+  /** Rotten Tomatoes score from OMDb (e.g. "87%"), when available. */
+  rottenTomatoes?: string;
+  /** Metacritic Metascore from OMDb (e.g. "74"), when available. */
+  metascore?: string;
   /** False when the title isn't released yet — the popup shows the date instead of a verdict. */
   released: boolean;
   /** Release date (YYYY-MM-DD) if known. */
@@ -210,6 +223,12 @@ export interface MovieCredits {
 export interface OmdbInfo {
   awards?: string;
   imdbRating?: string;
+  /** IMDb vote count as OMDb returns it, e.g. "2,547,891". */
+  imdbVotes?: string;
+  /** Rotten Tomatoes score, e.g. "87%". */
+  rottenTomatoes?: string;
+  /** Metacritic Metascore, e.g. "74". */
+  metascore?: string;
 }
 
 export interface IOmdbService {

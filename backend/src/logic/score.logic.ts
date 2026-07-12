@@ -24,11 +24,6 @@ const WATCH_COUNTRY = 'IN';
 // Where-to-watch drifts (a title leaves Netflix); trailers/credits don't. 6h is a fine trade.
 const EXTRAS_TTL_MS = 6 * 60 * 60 * 1000;
 
-function youtubeSearchUrl(title: string, year?: number): string {
-  const q = `${title} ${year ?? ''} trailer`.trim();
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
-}
-
 export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
   private readonly watchCache = new TtlCache<WatchInfo | null>(EXTRAS_TTL_MS);
   private readonly trailerCache = new TtlCache<string | undefined>(EXTRAS_TTL_MS);
@@ -99,16 +94,25 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       voteCount: movie.voteCount,
       tasteMatch: scored.tasteMatch,
       posterUrl: movie.posterUrl,
-      trailerUrl: officialTrailer ?? youtubeSearchUrl(movie.title, movie.year),
+      trailerUrl: officialTrailer ?? this.youtubeSearchUrl(movie.title, movie.year),
       watch: watch as WatchInfo | null,
       director: credits.director,
       leadActor: credits.leadActor,
       awards: omdb?.awards,
       imdbRating: omdb?.imdbRating,
+      imdbVotes: omdb?.imdbVotes,
+      rottenTomatoes: omdb?.rottenTomatoes,
+      metascore: omdb?.metascore,
       released,
       releaseDate: movie.releaseDate,
       language: movie.language,
       onWatchlist,
     };
+  }
+
+  // Fallback when TMDB has no official trailer: a YouTube search for "<title> <year> trailer".
+  private youtubeSearchUrl(title: string, year?: number): string {
+    const q = `${title} ${year ?? ''} trailer`.trim();
+    return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
   }
 }
