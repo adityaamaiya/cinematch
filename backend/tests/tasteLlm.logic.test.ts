@@ -20,8 +20,15 @@ describe('LlmTaste', () => {
     expect(await new LlmTaste(fake('{"level":"none","why":"unsure"}'), profile).execute({ movie })).toBeNull();
   });
 
-  it('returns null on malformed output', async () => {
-    expect(await new LlmTaste(fake('not json at all'), profile).execute({ movie })).toBeNull();
+  it('throws on malformed output (so the caller falls back and does not cache it)', async () => {
+    await expect(new LlmTaste(fake('not json at all'), profile).execute({ movie })).rejects.toThrow(/malformed/);
+  });
+
+  it('passes a response schema for constrained decoding', async () => {
+    const svc = fake('{"level":"strong","why":"x"}');
+    await new LlmTaste(svc, profile).execute({ movie });
+    const schema = (svc.generate as ReturnType<typeof vi.fn>).mock.calls[0][2] as { required: string[] };
+    expect(schema.required).toEqual(['level', 'why']);
   });
 
   it('strips a ```json fence before parsing', async () => {

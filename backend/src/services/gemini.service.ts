@@ -16,8 +16,9 @@ export class GeminiService implements IGeminiService {
     private readonly logger: ILogger,
   ) {}
 
-  // Send a prompt, return the model's text. `json` asks the model for a JSON body (response mime).
-  async generate(prompt: string, json = false): Promise<string> {
+  // Send a prompt, return the model's text. `json` asks the model for a JSON body (response mime);
+  // `schema` turns on constrained decoding so the reply can't be malformed JSON.
+  async generate(prompt: string, json = false, schema?: object): Promise<string> {
     const url = `${BASE}/models/${this.model}:generateContent?key=${this.apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
@@ -30,6 +31,7 @@ export class GeminiService implements IGeminiService {
           temperature: 0.3,
           maxOutputTokens: 2048,
           ...(json ? { responseMimeType: 'application/json' } : {}),
+          ...(schema ? { responseSchema: schema } : {}),
         },
       }),
     });

@@ -238,8 +238,11 @@ export interface IOmdbService {
 
 /** Google Gemini text-generation client. Powers the optional LLM taste mode. */
 export interface IGeminiService {
-  /** Send a prompt, return the model's text output. `json` requests a JSON body. Throws on failure. */
-  generate(prompt: string, json?: boolean): Promise<string>;
+  /**
+   * Send a prompt, return the model's text output. `json` requests a JSON body; `schema` adds
+   * constrained decoding (Gemini responseSchema) so the JSON shape is guaranteed. Throws on failure.
+   */
+  generate(prompt: string, json?: boolean, schema?: object): Promise<string>;
 }
 
 // --- Logger contract ---

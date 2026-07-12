@@ -31,4 +31,12 @@ describe('GeminiService.generate', () => {
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body);
     expect(body.generationConfig.responseMimeType).toBe('application/json');
   });
+
+  it('includes the response schema when given', async () => {
+    const fetchMock = mockFetch(200, { candidates: [{ content: { parts: [{ text: '{}' }] } }] });
+    vi.stubGlobal('fetch', fetchMock);
+    await svc.generate('hi', true, { type: 'OBJECT' });
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body);
+    expect(body.generationConfig.responseSchema).toEqual({ type: 'OBJECT' });
+  });
 });

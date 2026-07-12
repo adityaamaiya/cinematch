@@ -10,6 +10,7 @@ import type {
   TasteMatchLevel,
   TmdbMovie,
 } from '../types/index.js';
+import { AppError } from '../lib/errors.js';
 
 export interface LlmTasteInput {
   movie: TmdbMovie;
@@ -19,6 +20,16 @@ export interface LlmTasteInput {
 
 const EMOJI: Record<TasteMatchLevel, string> = { strong: '🔥', mild: '✨', mismatch: '🥴' };
 const LEVELS = new Set(['strong', 'mild', 'mismatch']);
+// Gemini responseSchema (constrained decoding) — the thinking model occasionally emits broken JSON
+// without it (stray quotes), which used to read as "no taste line" and get cached for 6h.
+const RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    level: { type: 'STRING', enum: ['strong', 'mild', 'mismatch', 'none'] },
+    why: { type: 'STRING' },
+  },
+  required: ['level', 'why'],
+} as const;
 
 export class LlmTaste implements ILogic<LlmTasteInput, TasteMatch | null> {
   constructor(
@@ -27,7 +38,7 @@ export class LlmTaste implements ILogic<LlmTasteInput, TasteMatch | null> {
   ) {}
 
   async execute(input: LlmTasteInput): Promise<TasteMatch | null> {
-    const raw = await this.gemini.generate(this.prompt(input), true);
+    const raw = await this.gemini.generate(this.prompt(input), true, RESPONSE_SCHEMA);
     return this.parse(raw);
   }
 
@@ -55,13 +66,15 @@ ONLY a JSON object, no prose:
 strong = they'll love it · mild = they'll probably like it · mismatch = not their taste · none = genuinely unsure.`;
   }
 
-  // Parse the model's JSON. Anything malformed / "none" → no taste line (null).
+  // Parse the model's JSON. "none" → no taste line (null, cacheable). Malformed → throw: that's an
+  // upstream fault, so ScoreLogic falls back to the statistical line and retries on the next request
+  // instead of caching an empty answer for 6h.
   private parse(raw: string): TasteMatch | null {
     let obj: { level?: string; why?: string };
     try {
       obj = JSON.parse(raw.trim().replace(/^```json\s*|\s*```$/g, ''));
     } catch {
-      return null;
+      throw AppError.upstream('Gemini returned malformed JSON');
     }
     const level = obj.level;
     if (typeof level !== 'string' || !LEVELS.has(level)) return null;
