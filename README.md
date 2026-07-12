@@ -28,6 +28,10 @@ On any movie page — here the popup open on a Prime Video title:
 
 ![CineMatch demo](docs/media/demo.webp)
 
+…and full-screen, the popup open on a real streaming page:
+
+![CineMatch full-screen demo](docs/media/fsdemo.webp)
+
 ---
 
 ## How it works
