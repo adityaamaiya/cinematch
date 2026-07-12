@@ -4,7 +4,9 @@ import type {
   ITmdbService,
   MovieCredits,
   OmdbInfo,
+  RatedMovie,
   ScoreResult,
+  TasteMatch,
   WatchInfo,
 } from '../types/index.js';
 import { AppError } from '../lib/errors.js';
@@ -12,6 +14,7 @@ import { Profile } from '../models/profile.model.js';
 import { TtlCache } from '../lib/ttlCache.js';
 import type { MovieLookup } from './movieLookup.js';
 import type { Scorer } from './scorer.logic.js';
+import type { LlmTaste } from './tasteLlm.logic.js';
 
 export interface ScoreInput {
   title: string;
@@ -29,12 +32,15 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
   private readonly trailerCache = new TtlCache<string | undefined>(EXTRAS_TTL_MS);
   private readonly creditsCache = new TtlCache<MovieCredits>(EXTRAS_TTL_MS);
   private readonly omdbCache = new TtlCache<OmdbInfo | null>(EXTRAS_TTL_MS);
+  private readonly tasteCache = new TtlCache<TasteMatch | null>(EXTRAS_TTL_MS);
 
   constructor(
     private readonly lookup: MovieLookup,
     private readonly scorer: Scorer,
     private readonly tmdb: ITmdbService,
     private readonly omdb: IOmdbService,
+    // Optional LLM taste mode; when absent, taste is the statistical Scorer only.
+    private readonly llmTaste?: LlmTaste,
   ) {}
 
   async execute(input: ScoreInput): Promise<ScoreResult> {
@@ -53,7 +59,8 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     const mediaType = movie.mediaType ?? 'movie';
     const cacheKey = `${mediaType}:${movie.tmdbId}`;
     const omdbKey = `${movie.title.toLowerCase()}|${movie.year ?? ''}`;
-    const [affinities, watch, officialTrailer, credits, omdb, onWatchlist] = await Promise.all([
+    const [affinities, watch, officialTrailer, credits, omdb, onWatchlist, ratedMovies] =
+      await Promise.all([
       Profile.findAffinities(input.userKey),
       this.watchCache
         .remember(`${cacheKey}:${WATCH_COUNTRY}`, () =>
@@ -68,6 +75,9 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
         .catch((): MovieCredits => ({})),
       this.omdbCache.remember(omdbKey, () => this.omdb.lookup(movie.title, movie.year)).catch(() => null),
       Profile.isOnWatchlist(input.userKey, movie.title, movie.year).catch(() => false),
+      this.llmTaste
+        ? Profile.getRatedMovies(input.userKey).catch(() => [] as RatedMovie[])
+        : Promise.resolve([] as RatedMovie[]),
     ]);
 
     // Unreleased titles have no real rating yet → no verdict/taste; the popup shows the date instead.
@@ -85,6 +95,22 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
         })
       : { verdict: 'Skip' as const, tasteMatch: null };
 
+    // Taste line: prefer the LLM's reasoning when configured; fall back to the statistical result on
+    // any error (and cache per title so repeat views don't re-hit Gemini). Verdict stays objective.
+    let tasteMatch = scored.tasteMatch;
+    if (released && this.llmTaste && ratedMovies.length) {
+      tasteMatch = await this.tasteCache
+        .remember(`${cacheKey}:llm`, () =>
+          this.llmTaste!.execute({
+            ratedMovies,
+            movie,
+            director: credits.director,
+            leadActor: credits.leadActor,
+          }),
+        )
+        .catch(() => scored.tasteMatch);
+    }
+
     return {
       title: movie.title,
       year: movie.year,
@@ -92,7 +118,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       verdict: scored.verdict,
       tmdbRating: movie.rating,
       voteCount: movie.voteCount,
-      tasteMatch: scored.tasteMatch,
+      tasteMatch,
       posterUrl: movie.posterUrl,
       trailerUrl: officialTrailer ?? this.youtubeSearchUrl(movie.title, movie.year),
       watch: watch as WatchInfo | null,

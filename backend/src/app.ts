@@ -1,7 +1,7 @@
 // Composition root: build deps, wire logic → controllers → routers, mount middleware. Separate
 // from index.ts so tests inject a mock TMDB client and skip the DB connection + bound port.
 import express, { type Express } from 'express';
-import type { ILogger, IOmdbService, ITmdbService } from './types/index.js';
+import type { IGeminiService, ILogger, IOmdbService, ITmdbService } from './types/index.js';
 import { Logger } from './lib/logger.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 import { rateLimit } from './middleware/rateLimit.middleware.js';
@@ -17,6 +17,7 @@ import { WatchlistController } from './controllers/watchlist.controller.js';
 import { Scorer } from './logic/scorer.logic.js';
 import { MovieLookup } from './logic/movieLookup.js';
 import { ScoreLogic } from './logic/score.logic.js';
+import { LlmTaste } from './logic/tasteLlm.logic.js';
 import { RecommendLogic } from './logic/recommend.logic.js';
 import { SyncProfileLogic } from './logic/syncProfile.logic.js';
 import { WatchlistLogic } from './logic/watchlist.logic.js';
@@ -25,6 +26,8 @@ export interface AppDeps {
   tmdb: ITmdbService;
   omdb: IOmdbService;
   syncToken: string;
+  /** Optional — enables the LLM taste mode. Absent → statistical Scorer only. */
+  gemini?: IGeminiService;
   logger?: ILogger;
 }
 
@@ -40,7 +43,10 @@ export function createApp(deps: AppDeps): Express {
   // --- wire dependencies (interface → concrete, one place) ---
   const scorer = new Scorer();
   const lookup = new MovieLookup(deps.tmdb, logger);
-  const scoreController = new ScoreController(new ScoreLogic(lookup, scorer, deps.tmdb, deps.omdb));
+  const llmTaste = deps.gemini ? new LlmTaste(deps.gemini) : undefined;
+  const scoreController = new ScoreController(
+    new ScoreLogic(lookup, scorer, deps.tmdb, deps.omdb, llmTaste),
+  );
   const recommendController = new RecommendController(new RecommendLogic(deps.tmdb, scorer));
   const profileController = new ProfileController(new SyncProfileLogic(lookup, deps.tmdb));
   const watchlistController = new WatchlistController(new WatchlistLogic(lookup, scorer, deps.tmdb));

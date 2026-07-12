@@ -236,6 +236,12 @@ export interface IOmdbService {
   lookup(title: string, year?: number): Promise<OmdbInfo | null>;
 }
 
+/** Google Gemini text-generation client. Powers the optional LLM taste mode. */
+export interface IGeminiService {
+  /** Send a prompt, return the model's text output. `json` requests a JSON body. Throws on failure. */
+  generate(prompt: string, json?: boolean): Promise<string>;
+}
+
 // --- Logger contract ---
 
 export interface ILogger {

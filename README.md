@@ -84,6 +84,12 @@ present (director is the strongest personal signal) — into `strong` / `mild` /
 Cutoffs are tuned to the profile's own spread (see `scripts/calibrate-affinity.ts`). No profile → no
 taste line, verdict only.
 
+**LLM taste mode (optional).** Set a `GEMINI_API_KEY` and the taste line is produced instead by
+Gemini reasoning over your rating history — matching on *tone, themes, and director/cast patterns*,
+not just genre/name overlap. It flags a Korean psychological thriller as "🔥 peak you" because you
+loved Parasite and Memories of Murder, and writes a one-line *why*. Cached per title; falls back to
+the statistical signal on any error, so it never blocks a score. The objective verdict is untouched.
+
 **Same-name titles.** When several films share a title, an on-page year decides. With no year, the
 tie is broken by **language priority** — the languages you actually watch most, learned from your
 ratings at sync (e.g. a Bollywood/South viewer gets the Hindi/Tamil cut over a more-popular English
@@ -121,6 +127,8 @@ npm test                  # vitest
 | `PORT` | HTTP port (default 3000). |
 | `SYNC_TOKEN` | Bearer secret guarding `POST /sync-profile`. |
 | `OMDB_API_KEY` | Optional — enables the awards + IMDb line ([free key](https://www.omdbapi.com/apikey.aspx)). |
+| `GEMINI_API_KEY` | Optional — enables the LLM taste mode ([free key](https://aistudio.google.com/apikey)). Empty → statistical taste only. |
+| `GEMINI_MODEL` | Gemini model for the taste mode (default `gemini-flash-latest`). |
 | `BACKEND_URL` | Only for `npm run seed` (defaults to `http://localhost:$PORT`). |
 
 Real `.env` files are gitignored; commit only `.env.example`.
@@ -178,7 +186,7 @@ JSON or adapt the importer to your source — the backend and the profile API st
 
 ## Tech
 
-Vanilla JS (MV3) · Node 20 · Express · TypeScript · Mongoose · Zod · Playwright · vitest.
+Vanilla JS (MV3) · Node 20 · Express · TypeScript · Mongoose · Zod · Gemini · Playwright · vitest.
 
 ## License
 

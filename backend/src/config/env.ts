@@ -22,6 +22,10 @@ export interface Env {
   syncToken: string;
   /** Optional — enables the awards + IMDb-rating line. Empty string = disabled. */
   omdbApiKey: string;
+  /** Optional — enables the LLM taste mode. Empty string = disabled (statistical Scorer only). */
+  geminiApiKey: string;
+  /** Gemini model id for the taste mode. */
+  geminiModel: string;
 }
 
 export const env: Env = {
@@ -31,4 +35,6 @@ export const env: Env = {
   tmdbReadToken: required('TMDB_READ_ACCESS_TOKEN'),
   syncToken: required('SYNC_TOKEN'),
   omdbApiKey: optional('OMDB_API_KEY', ''),
+  geminiApiKey: optional('GEMINI_API_KEY', ''),
+  geminiModel: optional('GEMINI_MODEL', 'gemini-flash-latest'),
 };
