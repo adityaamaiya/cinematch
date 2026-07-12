@@ -38,9 +38,16 @@ const LANGUAGE_MIN_COUNT = 3;
 //   tier 1 — English                                → the global default, middle
 //   tier 2 — everything else (ko, ja, …)            → last
 // Within a tier, ordered by how much the user actually watches.
-// ponytail: home set is hardcoded for this (India-based) deployment; a forker edits it or lifts it
-// to config if their region differs.
-const HOME_LANGUAGES = new Set(['hi', 'ta', 'te', 'ml', 'kn', 'bn', 'mr', 'pa', 'gu', 'or', 'as', 'ur']);
+// The home set is configurable per deployment via HOME_LANGUAGES (comma-separated ISO 639-1 codes);
+// defaults to this repo owner's Indian-language set. A forker in another region sets their own.
+// Read from process.env directly (not config/env) so this pure lib stays test-importable without
+// the full env validation.
+const HOME_LANGUAGES = new Set(
+  (process.env.HOME_LANGUAGES ?? 'hi,ta,te,ml,kn,bn,mr,pa,gu,or,as,ur')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+);
 const langTier = (lang: string): number => (HOME_LANGUAGES.has(lang) ? 0 : lang === 'en' ? 1 : 2);
 
 export function rankLanguages(films: RatedSignals[]): string[] {

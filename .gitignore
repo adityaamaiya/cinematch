@@ -17,3 +17,7 @@ build/
 # personal Moctale data dump (not for the public repo)
 moctale.response.json
 backend/profile.local.json
+
+# personal taste profile for the LLM mode — per-deployment, generate your own from your ratings
+# (see taste-profile.example.md). Not committed.
+backend/taste-profile.md

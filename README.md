@@ -139,6 +139,7 @@ npm test                  # vitest
 | `OMDB_API_KEY` | Optional — enables the awards + IMDb line ([free key](https://www.omdbapi.com/apikey.aspx)). |
 | `GEMINI_API_KEY` | Optional — enables the LLM taste mode ([free key](https://aistudio.google.com/apikey)). Empty → statistical taste only. |
 | `GEMINI_MODEL` | Gemini model(s) for the taste mode; comma-separated = fallback chain, each tried in order on quota errors (default `gemini-flash-lite-latest,gemini-2.5-flash`). |
+| `HOME_LANGUAGES` | Your region's languages (comma-separated ISO 639-1) for same-name tie-breaking; home langs rank first, then English, then the rest (default an Indian-language set). |
 | `BACKEND_URL` | Only for `npm run seed` (defaults to `http://localhost:$PORT`). |
 
 Real `.env` files are gitignored; commit only `.env.example`.
@@ -191,8 +192,18 @@ After deploying, point `DEFAULT_BACKEND` in [extension/popup.js](extension/popup
 
 ## Fork it
 
-CineMatch isn't tied to any one account. Fork, set your own `.env`, and either seed your ratings as
-JSON or adapt the importer to your source — the backend and the profile API stay the same.
+CineMatch isn't tied to any one account — the verdict, statistical taste, detection, and watchlist
+all regenerate from **your** seeded ratings. Fork, set your own `.env`, and seed your ratings.
+
+**To re-tune it to your taste (not the repo owner's):**
+1. **Ratings** — get yours into `{ title, type, year, verdict }` JSON and `npm run seed`
+   (`scripts/moctale-to-profile.ts` is an example converter; adapt it to your source).
+2. **`HOME_LANGUAGES`** — set your region's language codes in `.env` (default is Indian languages).
+3. **LLM taste mode** — `taste-profile.md` is gitignored and per-deployment. Generate your own from
+   `taste-profile.example.md` (paste your ratings into an LLM, save the summary as
+   `backend/taste-profile.md`). Without it, the taste line uses the statistical signal.
+4. **Cutoffs** — the statistical strong/mild/mismatch thresholds are tuned to the owner's rating
+   spread; re-run `scripts/calibrate-affinity.ts` against yours if the taste line feels off.
 
 ## Tech
 
