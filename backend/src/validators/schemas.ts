@@ -64,8 +64,9 @@ export const rateBody = z.object({
   type: contentType.default('Movie'),
   year: z.coerce.number().int().optional(),
   verdict,
-  /** Poster snapshot from the enriched /score view (popup has it) — stored so "My ratings" needs no lookup. */
+  /** Snapshot from the enriched /score view (popup has it) — stored so "My ratings" needs no lookup. */
   posterUrl: z.string().trim().url().optional(),
+  director: z.string().trim().min(1).optional(),
 });
 
 export const watchlistQuery = listQuery;

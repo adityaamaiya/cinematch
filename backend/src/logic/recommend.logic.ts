@@ -1,5 +1,6 @@
-import type { ILogic, ITmdbService, Mood, Recommendation } from '../types/index.js';
+import type { ILogic, ITmdbService, MovieCredits, Mood, Recommendation, TmdbMovie } from '../types/index.js';
 import { Profile } from '../models/profile.model.js';
+import { TtlCache } from '../lib/ttlCache.js';
 import { DEFAULT_GENRE_IDS, GENRE_NAME_TO_ID, MOOD_GENRES } from '../constants/moods.js';
 import { verdictBand } from '../lib/affinity.js';
 import type { MovieLookup } from './movieLookup.js';
@@ -15,11 +16,29 @@ export interface RecommendInput {
 // Two modes: LLM (taste-profile picks, when Gemini is configured) with a genre-discover fallback
 // (mood/genre → TMDB discover) so recommend + mood chips still work with no key.
 export class RecommendLogic implements ILogic<RecommendInput, Recommendation[]> {
+  private readonly creditsCache = new TtlCache<MovieCredits>(6 * 60 * 60 * 1000);
+
   constructor(
     private readonly tmdb: ITmdbService,
     private readonly lookup: MovieLookup,
     private readonly llmRecommend?: LlmRecommend,
   ) {}
+
+  // Build a Recommendation from a resolved TMDB movie, adding the director (cached credits call).
+  private async toRec(movie: TmdbMovie): Promise<Recommendation> {
+    const mediaType = movie.mediaType ?? 'movie';
+    const credits = await this.creditsCache
+      .remember(`${mediaType}:${movie.tmdbId}`, () => this.tmdb.credits(movie.tmdbId, mediaType))
+      .catch((): MovieCredits => ({}));
+    return {
+      title: movie.title,
+      year: movie.year,
+      verdict: movie.released !== false ? verdictBand(movie.rating) : 'Skip',
+      tmdbRating: movie.rating,
+      posterUrl: movie.posterUrl,
+      director: credits.director,
+    };
+  }
 
   async execute(input: RecommendInput): Promise<Recommendation[]> {
     if (this.llmRecommend) {
@@ -45,13 +64,7 @@ export class RecommendLogic implements ILogic<RecommendInput, Recommendation[]> 
       if (watched.has(key(s.title, s.year))) continue;
       const movie = await this.lookup.execute({ title: s.title, year: s.year, preferredLanguages });
       if (!movie) continue; // TMDB can't find it → probable hallucination
-      recs.push({
-        title: movie.title,
-        year: movie.year,
-        verdict: movie.released !== false ? verdictBand(movie.rating) : 'Skip',
-        tmdbRating: movie.rating,
-        posterUrl: movie.posterUrl,
-      });
+      recs.push(await this.toRec(movie));
     }
     return recs;
   }
@@ -70,13 +83,7 @@ export class RecommendLogic implements ILogic<RecommendInput, Recommendation[]> 
     for (const movie of movies) {
       if (recs.length >= input.limit) break;
       if (watched.has(key(movie.title, movie.year))) continue;
-      recs.push({
-        title: movie.title,
-        year: movie.year,
-        verdict: movie.released !== false ? verdictBand(movie.rating) : 'Skip',
-        tmdbRating: movie.rating,
-        posterUrl: movie.posterUrl,
-      });
+      recs.push(await this.toRec(movie));
     }
     return recs;
   }

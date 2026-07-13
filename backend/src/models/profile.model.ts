@@ -65,8 +65,9 @@ const ratedMovieSchema = new Schema<RatedMovie>(
     type: { type: String, enum: CONTENT_TYPES, required: true },
     year: { type: Number },
     verdict: { type: String, enum: VERDICTS, required: true },
-    // Snapshot captured when rated in-app (seeded ratings have neither) — see RatedMovie.
+    // Snapshot captured when rated in-app (seeded ratings lack these) — see RatedMovie.
     posterUrl: { type: String },
+    director: { type: String },
     ratedAt: { type: String },
   },
   { _id: false },

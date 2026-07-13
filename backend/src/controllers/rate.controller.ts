@@ -10,8 +10,8 @@ export class RateController {
   constructor(private readonly rateLogic: RateLogic) {}
 
   add: RequestHandler = asyncHandler(async (req, res) => {
-    const { title, type, year, verdict, posterUrl } = rateBody.parse(req.body);
-    await this.rateLogic.execute({ userKey: DEFAULT_PROFILE_KEY, title, type, year, verdict, posterUrl });
+    const { title, type, year, verdict, posterUrl, director } = rateBody.parse(req.body);
+    await this.rateLogic.execute({ userKey: DEFAULT_PROFILE_KEY, title, type, year, verdict, posterUrl, director });
     res.json(ok({ rated: true }));
   });
 

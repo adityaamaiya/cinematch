@@ -45,6 +45,8 @@ export interface RatedMovie {
   /** Poster snapshot captured when rated in-app (from the enriched /score view) — lets the "My
    * ratings" list show a thumbnail with no extra TMDB call. Absent for the seeded Moctale ratings. */
   posterUrl?: string;
+  /** Director snapshot (shown in the "My ratings" list). Absent for seeded ratings until backfilled. */
+  director?: string;
   /** ISO timestamp the rating was made in-app (server-set). Absent for seeded ratings. */
   ratedAt?: string;
 }
@@ -179,6 +181,7 @@ export interface Recommendation {
   verdict: Verdict;
   tmdbRating: number;
   posterUrl?: string;
+  director?: string;
 }
 
 /** A watchlist entry scored for the "My list" view. */

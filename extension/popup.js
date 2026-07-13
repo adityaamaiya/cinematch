@@ -267,6 +267,7 @@ function bindRate(data) {
             year: data.year,
             verdict: btn.dataset.verdict,
             posterUrl: data.posterUrl,
+            director: data.director,
           }),
         });
         if (!res.ok) throw new Error('failed');
@@ -428,6 +429,7 @@ function ratingRowHtml(r) {
       ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
       <span role="button" tabindex="0" class="rec-open wl-meta">
         <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
+        ${r.director ? `<span class="wl-dir">${escapeHtml(r.director)}</span>` : ''}
       </span>
       <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${escapeHtml(r.verdict)}</span>
     </div>`;

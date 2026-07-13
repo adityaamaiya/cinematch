@@ -20,7 +20,7 @@ const fakeTmdb = (): ITmdbService => ({
   discover: vi.fn(async () => [movie('Discovered', 8.5)]),
   watchProviders: vi.fn(async () => null),
   trailerUrl: vi.fn(async () => undefined),
-  credits: vi.fn(async () => ({})),
+  credits: vi.fn(async () => ({ director: 'Some Director' })),
 });
 
 // MovieLookup stub: resolves any title EXCEPT ones in `unresolved` (simulating a TMDB miss).
@@ -83,6 +83,7 @@ describe('RecommendLogic (LLM path)', () => {
     const out = await logic.execute({ limit: 5, userKey: 'default' });
     expect(out.map((r) => r.title)).toEqual(['Good Pick']);
     expect(out[0].verdict).toBe('Perfection'); // rating 8 → Perfection band
+    expect(out[0].director).toBe('Some Director'); // director resolved via credits
   });
 
   it('title+year: a same-name but different-year suggestion is NOT dropped', async () => {

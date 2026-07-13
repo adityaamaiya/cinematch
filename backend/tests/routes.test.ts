@@ -111,6 +111,7 @@ describe('POST /rate + GET /ratings', () => {
       year: 2010,
       verdict: 'Perfection',
       posterUrl: undefined,
+      director: undefined,
     });
   });
 
