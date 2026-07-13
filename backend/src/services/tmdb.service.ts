@@ -26,13 +26,23 @@ export class TmdbService implements ITmdbService {
     year?: number,
     preferredLanguages: string[] = [],
   ): Promise<TmdbMovie | null> {
-    const data = await this.request<{ results: TmdbSearchItem[] }>('/search/multi', {
-      query: title,
-      include_adult: 'false',
-    });
-    const candidates = (data.results ?? []).filter(
-      (r) => r.media_type === 'movie' || r.media_type === 'tv',
+    const page1 = await this.request<{ results: TmdbSearchItem[]; total_pages?: number }>(
+      '/search/multi',
+      { query: title, include_adult: 'false', page: '1' },
     );
+    let results = page1.results ?? [];
+    // A same-name title in a preferred language can sit past page 1 when its TMDB popularity is low
+    // (e.g. the Hindi "War" (2019) trails "War Machine"/"Infinity War" for the bare query "War"). When
+    // we have languages to disambiguate toward, pull one more page so it enters the candidate pool.
+    if (preferredLanguages.length && (page1.total_pages ?? 1) > 1) {
+      const page2 = await this.request<{ results: TmdbSearchItem[] }>('/search/multi', {
+        query: title,
+        include_adult: 'false',
+        page: '2',
+      }).catch(() => ({ results: [] as TmdbSearchItem[] }));
+      results = results.concat(page2.results ?? []);
+    }
+    const candidates = results.filter((r) => r.media_type === 'movie' || r.media_type === 'tv');
     const best = this.pickBest(candidates, title, year, preferredLanguages);
     if (!best) return null;
     return this.adapter.adapt({ item: best, genres: await this.loadGenreMap() });

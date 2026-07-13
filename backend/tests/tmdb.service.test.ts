@@ -149,6 +149,38 @@ describe('TmdbService.searchTitle', () => {
     expect(movie?.language).toBe('hi');
   });
 
+  it('pulls page 2 to surface a preferred-language same-name title buried past page 1', async () => {
+    // page 1 = only the English "War"; the Hindi one (low popularity) is on page 2. With a language
+    // preference + total_pages > 1, searchTitle fetches page 2 and the Hindi one wins.
+    const page1 = [{ id: 1, media_type: 'movie', title: 'War', original_language: 'en', popularity: 5, genre_ids: [28] }];
+    const page2 = [{ id: 2, media_type: 'movie', title: 'War', original_language: 'hi', popularity: 2, genre_ids: [28] }];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: URL | string) => {
+        const url = input.toString();
+        let body: unknown = {};
+        if (url.includes('/genre/movie/list')) body = GENRE_ROUTES['/genre/movie/list'].body;
+        else if (url.includes('/genre/tv/list')) body = GENRE_ROUTES['/genre/tv/list'].body;
+        else if (url.includes('/search/multi')) body = { results: url.includes('page=2') ? page2 : page1, total_pages: 3 };
+        return { ok: true, status: 200, json: async () => body } as Response;
+      }),
+    );
+    const movie = await service.searchTitle('War', undefined, ['hi', 'en']);
+    expect(movie?.tmdbId).toBe(2);
+    expect(movie?.language).toBe('hi');
+  });
+
+  it('does NOT fetch page 2 without a language preference (single-title lookups stay 1 request)', async () => {
+    const fetchMock = mockFetch({
+      ...GENRE_ROUTES,
+      '/search/multi': { body: { results: [{ id: 1, media_type: 'movie', title: 'War', original_language: 'en', genre_ids: [28] }], total_pages: 3 } },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await service.searchTitle('War');
+    const searchCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/search/multi'));
+    expect(searchCalls).toHaveLength(1); // no page 2
+  });
+
   it('a matching year still beats language preference', async () => {
     vi.stubGlobal(
       'fetch',
