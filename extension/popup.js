@@ -215,8 +215,13 @@ function rateSectionHtml(data) {
       <div class="rate-label">${data.userVerdict ? 'Your rating' : 'Rate this'}</div>
       <div class="rate-row">${chips}</div>
     </div>
-    <button class="ghost" id="refresh-taste">↻ Refresh taste</button>
     <button class="ghost" id="show-ratings">⭐ My ratings</button>`;
+}
+
+// "Refresh taste" lives on its own at the very bottom (after watch providers) so it isn't mis-clicked
+// while rating or opening a list — it's an AI call + full rebuild (also guarded by a confirm).
+function refreshTasteBtnHtml() {
+  return `<button class="ghost" id="refresh-taste" style="margin-top:16px">↻ Refresh taste profile</button>`;
 }
 
 function bindRate(data) {
@@ -249,8 +254,10 @@ function bindRate(data) {
   );
 
   // Manual taste-profile rebuild → re-score this title so the fresh taste line shows.
+  // Confirm first: it's one AI (Gemini) call + a full profile rebuild, so guard accidental clicks.
   view.querySelector('#refresh-taste')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
+    if (!window.confirm('Rebuild your taste profile from all your ratings? (uses one AI call)')) return;
     btn.disabled = true;
     btn.textContent = 'Rebuilding taste…';
     try {
@@ -371,7 +378,8 @@ function renderScore(data) {
     ${awardsHtml(data)}
     ${trailerHtml(data.trailerUrl)}
     ${watchlistBtnHtml(data)}
-    ${watchHtml(data.watch)}`;
+    ${watchHtml(data.watch)}
+    ${refreshTasteBtnHtml()}`;
   bindWatchlistAdd();
   bindRate(data);
   toggleNotThis(data.title);
