@@ -7,6 +7,7 @@ import type {
   ILogic,
   TasteMatch,
   TasteMatchLevel,
+  TasteProfileRef,
   TmdbMovie,
 } from '../types/index.js';
 import { AppError } from '../lib/errors.js';
@@ -34,10 +35,13 @@ const RESPONSE_SCHEMA = {
 export class LlmTaste implements ILogic<LlmTasteInput, TasteMatch | null> {
   constructor(
     private readonly llm: ILlm,
-    private readonly profile: string,
+    // Mutable ref (not a plain string) so a regen updates the profile the live process reasons over,
+    // no restart. Empty text → no taste line (a blank profile would only mislead the model).
+    private readonly profileRef: TasteProfileRef,
   ) {}
 
   async execute(input: LlmTasteInput): Promise<TasteMatch | null> {
+    if (!this.profileRef.text.trim()) return null;
     const { text, model, fallback } = await this.llm.generate(this.prompt(input), true, RESPONSE_SCHEMA);
     const taste = this.parse(text);
     // Surface the model only when a fallback answered (primary exhausted) — the popup shows it small.
@@ -59,7 +63,7 @@ export class LlmTaste implements ILogic<LlmTasteInput, TasteMatch | null> {
     return `You predict whether one specific viewer will enjoy a title, from their taste profile.
 
 Their taste profile:
-${this.profile}
+${this.profileRef.text}
 
 New title: ${meta}
 

@@ -24,14 +24,14 @@ export class GroqService implements ILlmProvider {
     this.models = list.length ? list : ['llama-3.3-70b-versatile'];
   }
 
-  async request(model: string, prompt: string, json = false, _schema?: object): Promise<string> {
+  async request(model: string, prompt: string, json = false, _schema?: object, maxOutputTokens = 2048): Promise<string> {
     const res = await fetch(URL, {
       method: 'POST',
       headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         model,
         temperature: 0.3,
-        max_tokens: 2048,
+        max_tokens: maxOutputTokens,
         messages: [{ role: 'user', content: prompt }],
         ...(json ? { response_format: { type: 'json_object' } } : {}),
       }),

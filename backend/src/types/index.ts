@@ -42,6 +42,11 @@ export interface RatedMovie {
   type: ContentType;
   year?: number;
   verdict: Verdict;
+  /** Poster snapshot captured when rated in-app (from the enriched /score view) — lets the "My
+   * ratings" list show a thumbnail with no extra TMDB call. Absent for the seeded Moctale ratings. */
+  posterUrl?: string;
+  /** ISO timestamp the rating was made in-app (server-set). Absent for seeded ratings. */
+  ratedAt?: string;
 }
 
 /** A watchlist entry (no verdict — it's a "want to watch"). */
@@ -152,6 +157,8 @@ export interface ScoreResult {
   language?: string;
   /** True when this title is already on the user's watchlist. */
   onWatchlist: boolean;
+  /** The user's own verdict for this title, or null if they haven't rated it. Popup highlights it. */
+  userVerdict: Verdict | null;
 }
 
 /** A single recommendation (grid-page fallback). */
@@ -241,9 +248,11 @@ export interface LlmResult {
 export interface ILlm {
   /**
    * Send a prompt, return the model's text + which model produced it. `json` requests a JSON body;
-   * `schema` adds constrained decoding where the provider supports it. Throws when all models fail.
+   * `schema` adds constrained decoding where the provider supports it. `maxOutputTokens` overrides
+   * the default output budget — raised for taste-profile regen (long prose) so a thinking model
+   * doesn't truncate. Throws when all models fail.
    */
-  generate(prompt: string, json?: boolean, schema?: object): Promise<LlmResult>;
+  generate(prompt: string, json?: boolean, schema?: object, maxOutputTokens?: number): Promise<LlmResult>;
 }
 
 /**
@@ -257,9 +266,20 @@ export interface ILlmProvider {
   readonly models: string[];
   /**
    * Call one model. Must throw an AppError whose message contains "(429)" or "(503)" on a
-   * transient/quota failure so the chain falls through to the next model.
+   * transient/quota failure so the chain falls through to the next model. `maxOutputTokens`
+   * overrides the provider's default output budget (used for long regen output).
    */
-  request(model: string, prompt: string, json?: boolean, schema?: object): Promise<string>;
+  request(model: string, prompt: string, json?: boolean, schema?: object, maxOutputTokens?: number): Promise<string>;
+}
+
+/**
+ * Shared mutable holder for the taste-profile prose. Seeded from taste-profile.md at boot; the regen
+ * logic updates `text` + bumps `version` in-process (LlmTaste reads it live, no restart). `version`
+ * keys the persistent taste cache so a regen busts every stale line.
+ */
+export interface TasteProfileRef {
+  text: string;
+  version: number;
 }
 
 // --- Logger contract ---

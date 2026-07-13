@@ -5,7 +5,7 @@ import type { ILlm, TmdbMovie } from '../src/types/index.js';
 const movie: TmdbMovie = {
   tmdbId: 1, mediaType: 'movie', title: 'Memories of Murder', year: 2003, rating: 8.1, genres: ['Crime', 'Drama'], released: true,
 };
-const profile = 'Loves Korean crime thrillers and Bong Joon-ho slow-burns; bored by franchise filler.';
+const profile = { text: 'Loves Korean crime thrillers and Bong Joon-ho slow-burns; bored by franchise filler.', version: 0 };
 const fake = (text: string, model = 'gemini-flash-latest', fallback = false): ILlm => ({
   generate: vi.fn(async () => ({ text, model, fallback })),
 });
@@ -36,6 +36,12 @@ describe('LlmTaste', () => {
     expect(await new LlmTaste(fake('{"level":"none","why":"unsure"}'), profile).execute({ movie })).toBeNull();
   });
 
+  it('returns null (and never calls the LLM) when the profile is empty', async () => {
+    const svc = fake('{"level":"strong","score":90,"why":"x"}');
+    expect(await new LlmTaste(svc, { text: '  ', version: 0 }).execute({ movie })).toBeNull();
+    expect(svc.generate).not.toHaveBeenCalled();
+  });
+
   it('throws on malformed output (so the caller falls back and does not cache it)', async () => {
     await expect(new LlmTaste(fake('not json at all'), profile).execute({ movie })).rejects.toThrow(/malformed/);
   });
@@ -57,7 +63,7 @@ describe('LlmTaste', () => {
     const svc = fake('{"level":"strong","why":"x"}');
     await new LlmTaste(svc, profile).execute({ movie, director: 'Bong Joon-ho', leadActor: 'Song Kang-ho' });
     const prompt = (svc.generate as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-    expect(prompt).toContain(profile);
+    expect(prompt).toContain(profile.text);
     expect(prompt).toContain('Memories of Murder');
     expect(prompt).toContain('director: Bong Joon-ho');
     expect(prompt).toContain('lead: Song Kang-ho');

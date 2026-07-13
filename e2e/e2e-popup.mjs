@@ -54,6 +54,24 @@ async function main() {
   await page.route('**/score*', (route) =>
     route.fulfill({ contentType: 'application/json', body: JSON.stringify(SCORE) }),
   );
+  // Capture /rate POSTs so we can assert the chip click hits the backend.
+  let lastRate = null;
+  await page.route('**/rate', (route) => {
+    lastRate = JSON.parse(route.request().postData() || '{}');
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, data: { rated: true } }) });
+  });
+  await page.route('**/ratings', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: [
+          { title: 'Parasite', year: 2019, type: 'Movie', verdict: 'Perfection', posterUrl: 'https://img/parasite.jpg' },
+          { title: 'Fast X', year: 2023, type: 'Movie', verdict: 'Skip' },
+        ],
+      }),
+    }),
+  );
 
   await page.goto(popupPath);
 
@@ -80,6 +98,22 @@ async function main() {
   assert.ok(credits.includes('Christopher Nolan') && credits.includes('Leonardo DiCaprio'), 'credits render');
   assert.ok((await page.locator('.awards').innerText()).includes('Oscars'), 'awards render');
   assert.ok(await page.locator('.wl-add').count(), 'add-to-watchlist button renders');
+
+  // Rate-this row: four verdict chips; clicking one POSTs /rate and marks it active.
+  assert.strictEqual(await page.locator('.rate-chip').count(), 4, 'four rate chips render');
+  await page.locator('.rate-chip', { hasText: 'Perfection' }).click();
+  await page.waitForFunction(() => document.querySelector('.rate-chip.active')?.textContent === 'Perfection');
+  assert.ok(lastRate && lastRate.verdict === 'Perfection', 'clicking a rate chip POSTs the verdict');
+  assert.strictEqual(lastRate.title, 'Inception', 'rate POST carries the title');
+
+  // "My ratings" list renders from /ratings with verdict chips.
+  await page.locator('#show-ratings').click();
+  await page.waitForSelector('.rec', { timeout: 5000 });
+  const ratingsText = await page.locator('#recs').innerText();
+  assert.ok(ratingsText.includes('Parasite') && ratingsText.includes('Fast X'), 'ratings list renders titles');
+  assert.ok(await page.locator('#rt-back').count(), 'ratings view has a back button');
+  await page.locator('#rt-back').click();
+  await page.waitForSelector('#score-num', { timeout: 5000 }); // back returns to the scored title
 
   // "Not this title?" escape hatch → switches to manual search, pre-filled with the wrong guess.
   assert.ok(await page.locator('#not-this').count(), 'not-this button renders');
@@ -126,7 +160,7 @@ async function main() {
   await noTitle.close();
 
   await browser.close();
-  console.log('✓ popup e2e passed: gauge, verdict, trailer, provider, taste, poster, credits, awards, watchlist');
+  console.log('✓ popup e2e passed: gauge, verdict, trailer, provider, taste, poster, credits, awards, watchlist, rate chips, my-ratings');
 }
 
 main().catch((err) => {

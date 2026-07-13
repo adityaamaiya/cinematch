@@ -30,6 +30,8 @@ export interface Env {
   groqApiKey: string;
   /** Groq model id(s); comma-separated = fallback chain. Only used when GROQ_API_KEY is set. */
   groqModel: string;
+  /** New in-app ratings that trigger an automatic taste-profile regen. Default 10. */
+  tasteRegenEvery: number;
 }
 
 export const env: Env = {
@@ -43,4 +45,5 @@ export const env: Env = {
   geminiModel: optional('GEMINI_MODEL', 'gemini-flash-lite-latest,gemini-2.5-flash'),
   groqApiKey: optional('GROQ_API_KEY', ''),
   groqModel: optional('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+  tasteRegenEvery: Number(optional('TASTE_REGEN_EVERY', '10')),
 };

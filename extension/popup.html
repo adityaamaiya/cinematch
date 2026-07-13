@@ -198,6 +198,17 @@
         color: var(--muted); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; cursor: pointer;
       }
       .ghost:hover { background: var(--surface); color: var(--fg); }
+      .ghost:disabled { opacity: .6; cursor: default; }
+      /* Rate-this row: four verdict chips coloured by their verdict; the active one fills. */
+      .rate { margin: 14px 0 4px; }
+      .rate-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+      .rate-row { display: flex; gap: 6px; }
+      .rate-chip {
+        flex: 1; padding: 7px 4px; font-size: 11.5px; font-weight: 700; line-height: 1.1;
+        background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+      }
+      .rate-chip:hover { border-color: var(--rc); }
+      .rate-chip.active { background: var(--rc); color: #0a0a0a; border-color: var(--rc); }
       .header-actions { display: flex; align-items: center; gap: 10px; }
       .linkbtn {
         background: none; border: 0; padding: 0; color: var(--muted); font-size: 12px;

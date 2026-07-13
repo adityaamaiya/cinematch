@@ -201,6 +201,109 @@ function watchlistBtnHtml(data) {
     <button class="ghost" id="score-mylist">📋 My watchlist</button>`;
 }
 
+// "Rate this" — four verdict chips (your own rating, not the objective verdict). The stored rating
+// (data.userVerdict) is pre-highlighted. Below: rebuild the taste profile, and jump to "My ratings".
+function rateSectionHtml(data) {
+  const chips = ['Skip', 'Timepass', 'Go For It', 'Perfection']
+    .map((v) => {
+      const active = data.userVerdict === v ? ' active' : '';
+      return `<button class="rate-chip${active}" data-verdict="${escapeHtml(v)}" style="--rc:var(${VERDICT_VAR[v]})">${v}</button>`;
+    })
+    .join('');
+  return `
+    <div class="rate">
+      <div class="rate-label">${data.userVerdict ? 'Your rating' : 'Rate this'}</div>
+      <div class="rate-row">${chips}</div>
+    </div>
+    <button class="ghost" id="refresh-taste">↻ Refresh taste</button>
+    <button class="ghost" id="show-ratings">⭐ My ratings</button>`;
+}
+
+function bindRate(data) {
+  const chips = [...view.querySelectorAll('.rate-chip')];
+  chips.forEach((btn) =>
+    btn.addEventListener('click', async () => {
+      const prev = view.querySelector('.rate-chip.active');
+      chips.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      try {
+        const res = await fetch(`${await backendUrl()}/rate`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            title: data.title,
+            type: data.type || 'Movie',
+            year: data.year,
+            verdict: btn.dataset.verdict,
+            posterUrl: data.posterUrl,
+          }),
+        });
+        if (!res.ok) throw new Error('failed');
+        view.querySelector('.rate-label').textContent = 'Your rating';
+      } catch {
+        // Revert to the previous selection on failure.
+        btn.classList.remove('active');
+        if (prev) prev.classList.add('active');
+      }
+    }),
+  );
+
+  // Manual taste-profile rebuild → re-score this title so the fresh taste line shows.
+  view.querySelector('#refresh-taste')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'Rebuilding taste…';
+    try {
+      await fetch(`${await backendUrl()}/regenerate-taste`, { method: 'POST' });
+      scoreTitle(data.title, data.year);
+    } catch {
+      btn.disabled = false;
+      btn.textContent = '↻ Refresh taste';
+    }
+  });
+
+  view
+    .querySelector('#show-ratings')
+    ?.addEventListener('click', () => renderRatings(() => scoreTitle(data.title, data.year)));
+}
+
+// "My ratings": the raw ratings list, newest first (verdict chip + optional poster thumb). Click an
+// item to re-score it (the enriched view, where you can re-rate). `back` returns where you opened it.
+async function renderRatings(back) {
+  toggleNotThis(null);
+  const goBack = typeof back === 'function' ? back : () => renderManual();
+  view.innerHTML = `<p class="muted center">Loading your ratings…</p>`;
+  try {
+    const res = await fetch(`${await backendUrl()}/ratings`);
+    const body = await res.json();
+    if (!body.success) throw new Error(body.error?.message || 'Request failed');
+    const items = body.data;
+    const list = items.length
+      ? items
+          .map(
+            (r) => `<div class="rec wl-item" data-title="${escapeHtml(r.title)}" data-year="${r.year ?? ''}">
+              ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
+              <span role="button" tabindex="0" class="rec-open wl-meta">
+                <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
+              </span>
+              <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${escapeHtml(r.verdict)}</span>
+            </div>`,
+          )
+          .join('')
+      : `<p class="muted center">No ratings yet. Rate titles from any movie page.</p>`;
+    view.innerHTML = `<button class="ghost" id="rt-back">← Back</button><div id="recs">${list}</div>`;
+
+    document.getElementById('rt-back').addEventListener('click', goBack);
+    view.querySelectorAll('.rec').forEach((el) => {
+      const title = el.dataset.title;
+      const year = el.dataset.year ? Number(el.dataset.year) : undefined;
+      el.querySelector('.rec-open').addEventListener('click', () => pickTitle(title, year));
+    });
+  } catch (err) {
+    renderManual(`Couldn’t load ratings (${escapeHtml(err.message)})`);
+  }
+}
+
 // A released film with almost no votes has a meaningless rating (0 → would read "Skip"). Show it
 // as unrated instead of a bogus verdict.
 const MIN_VOTES = 5;
@@ -264,11 +367,13 @@ function renderScore(data) {
     </div>
     ${creditsHtml(data)}
     ${tasteHtml(data)}
+    ${rateSectionHtml(data)}
     ${awardsHtml(data)}
     ${trailerHtml(data.trailerUrl)}
     ${watchlistBtnHtml(data)}
     ${watchHtml(data.watch)}`;
   bindWatchlistAdd();
+  bindRate(data);
   toggleNotThis(data.title);
 }
 
@@ -316,6 +421,7 @@ function renderManual(message, prefill) {
       <button type="submit">Check</button>
     </form>
     <button class="ghost" id="show-watchlist">📋 My watchlist</button>
+    <button class="ghost" id="show-ratings">⭐ My ratings</button>
     <p class="muted" style="margin:14px 0 4px">Or pick a mood:</p>
     <div class="moods">${MOODS.map((m) => `<button class="mood" data-mood="${m}">${m}</button>`).join('')}</div>
     <div id="recs"></div>`;
@@ -328,6 +434,7 @@ function renderManual(message, prefill) {
     if (q) pickTitle(q); // manual correction → remember it for this tab
   });
   document.getElementById('show-watchlist').addEventListener('click', renderWatchlist);
+  document.getElementById('show-ratings').addEventListener('click', () => renderRatings());
   document.querySelectorAll('.mood').forEach((btn) =>
     btn.addEventListener('click', () => recommend(btn.dataset.mood)),
   );

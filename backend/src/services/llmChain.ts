@@ -11,12 +11,12 @@ export class LlmChain implements ILlm {
     this.attempts = providers.flatMap((provider) => provider.models.map((model) => ({ provider, model })));
   }
 
-  async generate(prompt: string, json = false, schema?: object): Promise<LlmResult> {
+  async generate(prompt: string, json = false, schema?: object, maxOutputTokens?: number): Promise<LlmResult> {
     let lastErr: unknown;
     for (let i = 0; i < this.attempts.length; i++) {
       const { provider, model } = this.attempts[i];
       try {
-        const text = await provider.request(model, prompt, json, schema);
+        const text = await provider.request(model, prompt, json, schema, maxOutputTokens);
         return { text, model, fallback: i > 0 };
       } catch (err) {
         // Only quota/overload falls through; anything else is a real fault worth surfacing.

@@ -43,4 +43,14 @@ describe('GeminiService.request', () => {
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body);
     expect(body.generationConfig.responseSchema).toEqual({ type: 'OBJECT' });
   });
+
+  it('defaults maxOutputTokens to 2048 but honours an override', async () => {
+    const fetchMock = mockFetch(200, { candidates: [{ content: { parts: [{ text: 'x' }] } }] });
+    vi.stubGlobal('fetch', fetchMock);
+    await svc.request('gemini-flash-latest', 'hi');
+    await svc.request('gemini-flash-latest', 'hi', false, undefined, 8192);
+    const bodyOf = (i: number) => JSON.parse((fetchMock.mock.calls[i] as unknown as [string, { body: string }])[1].body);
+    expect(bodyOf(0).generationConfig.maxOutputTokens).toBe(2048);
+    expect(bodyOf(1).generationConfig.maxOutputTokens).toBe(8192);
+  });
 });

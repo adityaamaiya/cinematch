@@ -44,6 +44,15 @@ export const watchlistAddBody = z.object({
   year: z.coerce.number().int().optional(),
 });
 
+export const rateBody = z.object({
+  title: z.string().trim().min(1, 'title is required'),
+  type: contentType.default('Movie'),
+  year: z.coerce.number().int().optional(),
+  verdict,
+  /** Poster snapshot from the enriched /score view (popup has it) — stored so "My ratings" needs no lookup. */
+  posterUrl: z.string().trim().url().optional(),
+});
+
 export const watchlistDeleteBody = z.object({
   title: z.string().trim().min(1, 'title is required'),
   year: z.coerce.number().int().optional(),
@@ -53,4 +62,5 @@ export type ScoreQuery = z.infer<typeof scoreQuery>;
 export type RecommendQuery = z.infer<typeof recommendQuery>;
 export type SyncProfileBody = z.infer<typeof syncProfileBody>;
 export type WatchlistAddBody = z.infer<typeof watchlistAddBody>;
+export type RateBody = z.infer<typeof rateBody>;
 export type WatchlistDeleteBody = z.infer<typeof watchlistDeleteBody>;

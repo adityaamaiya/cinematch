@@ -6,10 +6,13 @@ import type {
   OmdbInfo,
   ScoreResult,
   TasteMatch,
+  TasteProfileRef,
+  TmdbMovie,
   WatchInfo,
 } from '../types/index.js';
 import { AppError } from '../lib/errors.js';
 import { Profile } from '../models/profile.model.js';
+import { TasteCache } from '../models/tasteCache.model.js';
 import { TtlCache } from '../lib/ttlCache.js';
 import { verdictBand } from '../lib/affinity.js';
 import type { MovieLookup } from './movieLookup.js';
@@ -31,7 +34,6 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
   private readonly trailerCache = new TtlCache<string | undefined>(EXTRAS_TTL_MS);
   private readonly creditsCache = new TtlCache<MovieCredits>(EXTRAS_TTL_MS);
   private readonly omdbCache = new TtlCache<OmdbInfo | null>(EXTRAS_TTL_MS);
-  private readonly tasteCache = new TtlCache<TasteMatch | null>(EXTRAS_TTL_MS);
 
   constructor(
     private readonly lookup: MovieLookup,
@@ -39,6 +41,8 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     private readonly omdb: IOmdbService,
     // Optional LLM taste mode; when absent, no taste line is shown.
     private readonly llmTaste?: LlmTaste,
+    // Shared taste-profile ref — its `version` keys the persistent TasteCache so a regen busts lines.
+    private readonly tasteRef?: TasteProfileRef,
   ) {}
 
   async execute(input: ScoreInput): Promise<ScoreResult> {
@@ -57,7 +61,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
     const mediaType = movie.mediaType ?? 'movie';
     const cacheKey = `${mediaType}:${movie.tmdbId}`;
     const omdbKey = `${movie.title.toLowerCase()}|${movie.year ?? ''}`;
-    const [watch, officialTrailer, credits, omdb, onWatchlist] = await Promise.all([
+    const [watch, officialTrailer, credits, omdb, onWatchlist, userVerdict] = await Promise.all([
       this.watchCache
         .remember(`${cacheKey}:${WATCH_COUNTRY}`, () =>
           this.tmdb.watchProviders(movie.tmdbId, mediaType, WATCH_COUNTRY),
@@ -71,6 +75,7 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
         .catch((): MovieCredits => ({})),
       this.omdbCache.remember(omdbKey, () => this.omdb.lookup(movie.title, movie.year)).catch(() => null),
       Profile.isOnWatchlist(input.userKey, movie.title, movie.year).catch(() => false),
+      Profile.getRating(input.userKey, movie.title, movie.year).catch(() => null),
     ]);
 
     // Verdict = objective TMDB band. Unreleased titles have no real rating yet → no verdict (the
@@ -80,18 +85,13 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
 
     // Taste line = LLM only (no statistical fallback). Computed even for unreleased/unrated titles —
     // the model predicts from story/director/cast, which doesn't need a rating to exist yet. Cached
-    // per title so repeat views don't re-hit Gemini; on any error → no taste line.
+    // in Mongo (TasteCache) keyed by the taste-profile VERSION, so it survives restarts AND a regen
+    // (which bumps the version) busts every stale line. On any error → no taste line, not cached.
     let tasteMatch: TasteMatch | null = null;
     if (this.llmTaste) {
-      tasteMatch = await this.tasteCache
-        .remember(`${cacheKey}:llm`, () =>
-          this.llmTaste!.execute({
-            movie,
-            director: credits.director,
-            leadActor: credits.leadActor,
-          }),
-        )
-        .catch(() => null);
+      const version = this.tasteRef?.version ?? 0;
+      const tasteKey = `${cacheKey}:v${version}`;
+      tasteMatch = await this.resolveTaste(tasteKey, movie, credits).catch(() => null);
     }
 
     return {
@@ -116,7 +116,28 @@ export class ScoreLogic implements ILogic<ScoreInput, ScoreResult> {
       releaseDate: movie.releaseDate,
       language: movie.language,
       onWatchlist,
+      userVerdict,
     };
+  }
+
+  // Return the cached taste line for this version-scoped key, else compute it via the LLM and cache
+  // it. A cached `null` = "model said none" (still a hit). Only successful computations are cached —
+  // if LlmTaste throws (malformed output), it propagates so the caller drops the line and retries
+  // next time rather than caching an empty answer.
+  private async resolveTaste(
+    tasteKey: string,
+    movie: TmdbMovie,
+    credits: MovieCredits,
+  ): Promise<TasteMatch | null> {
+    const cached = await TasteCache.get(tasteKey).catch(() => undefined);
+    if (cached !== undefined) return cached;
+    const fresh = await this.llmTaste!.execute({
+      movie,
+      director: credits.director,
+      leadActor: credits.leadActor,
+    });
+    await TasteCache.put(tasteKey, fresh).catch(() => {});
+    return fresh;
   }
 
   // Fallback when TMDB has no official trailer: a YouTube search for "<title> <year> trailer".

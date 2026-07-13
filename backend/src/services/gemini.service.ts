@@ -27,7 +27,7 @@ export class GeminiService implements ILlmProvider {
   // Call one model. `json` asks for a JSON body; `schema` turns on constrained decoding (Gemini
   // responseSchema) so the reply can't be malformed JSON. Throws AppError.upstream with the status
   // in the message — LlmChain reads "(429)"/"(503)" to decide whether to fall through.
-  async request(model: string, prompt: string, json = false, schema?: object): Promise<string> {
+  async request(model: string, prompt: string, json = false, schema?: object, maxOutputTokens = 2048): Promise<string> {
     const url = `${BASE}/models/${model}:generateContent?key=${this.apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
@@ -36,9 +36,11 @@ export class GeminiService implements ILlmProvider {
         contents: [{ parts: [{ text: prompt }] }],
         // maxOutputTokens is generous because gemini-*-flash are thinking models — they spend
         // tokens reasoning before emitting, so a tight budget yields an empty MAX_TOKENS reply.
+        // Taste-profile regen passes a much larger budget (long prose); the runtime taste call uses
+        // the 2048 default.
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 2048,
+          maxOutputTokens,
           ...(json ? { responseMimeType: 'application/json' } : {}),
           ...(schema ? { responseSchema: schema } : {}),
         },

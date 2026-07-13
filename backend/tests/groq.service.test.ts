@@ -26,6 +26,16 @@ describe('GroqService.request', () => {
     expect(body.response_format).toEqual({ type: 'json_object' });
   });
 
+  it('defaults max_tokens to 2048 but honours an override', async () => {
+    const fetchMock = mockFetch(200, { choices: [{ message: { content: 'x' } }] });
+    vi.stubGlobal('fetch', fetchMock);
+    await svc.request('llama-3.3-70b-versatile', 'hi');
+    await svc.request('llama-3.3-70b-versatile', 'hi', false, undefined, 8192);
+    const bodyOf = (i: number) => JSON.parse((fetchMock.mock.calls[i] as unknown as [string, { body: string }])[1].body);
+    expect(bodyOf(0).max_tokens).toBe(2048);
+    expect(bodyOf(1).max_tokens).toBe(8192);
+  });
+
   it('throws with the status in the message on failure', async () => {
     vi.stubGlobal('fetch', mockFetch(429, {}));
     await expect(svc.request('llama-3.3-70b-versatile', 'hi')).rejects.toThrow(/Groq request failed \(429\)/);
