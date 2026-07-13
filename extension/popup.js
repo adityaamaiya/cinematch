@@ -473,13 +473,15 @@ function renderStatus(data, status) {
     </div>
     ${creditsHtml(data)}
     ${tasteHtml(data)}
-    ${rateSectionHtml(data)}
+    ${data.released !== false ? rateSectionHtml(data) : ''}
     ${listNavHtml()}
     ${trailerHtml(data.trailerUrl)}
     ${watchlistBtnHtml(data)}
     ${refreshTasteBtnHtml()}`;
   bindWatchlistAdd(data);
-  bindRate(data); // wires the rate chips, "My ratings" nav, and Refresh taste
+  // Rate chips only when released (can't rate a not-out-yet title); bindRate still wires the nav +
+  // Refresh buttons and no-ops on the absent chips.
+  bindRate(data);
   toggleNotThis(data.title);
 }
 

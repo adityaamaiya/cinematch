@@ -167,6 +167,20 @@ async function main() {
   await page.waitForFunction(() => document.body.innerText.includes('Too new'), { timeout: 5000 });
   assert.ok(!(await page.locator('#score-num').count()), 'unrated title shows no score number/verdict');
   assert.ok(await page.locator('.taste').count(), 'unrated title still shows the taste line');
+  assert.ok(await page.locator('.rate-chip').count(), '"Too new" (released) still lets you rate');
+
+  // A NOT-out-yet (unreleased) title: taste line shows, but rating is disabled (can't rate it).
+  await page.unroute('**/score*');
+  await page.route('**/score*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { ...SCORE.data, released: false, releaseDate: '2099-01-01' } }),
+    }),
+  );
+  await page.goto(popupPath);
+  await page.waitForFunction(() => document.body.innerText.includes('Not out yet'), { timeout: 5000 });
+  assert.strictEqual(await page.locator('.rate-chip').count(), 0, 'unreleased title shows NO rate chips');
+  assert.ok(await page.locator('.taste').count(), 'unreleased title still shows the taste line');
 
   // Regression: a content script that answers with NO title (e.g. Google with no panel) → manual
   // search, and must NOT re-inject content.js (double-inject throws "detectors already declared").
