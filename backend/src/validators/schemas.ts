@@ -47,6 +47,7 @@ export const watchlistAddBody = z.object({
   tmdbRating: z.number().optional(),
   posterUrl: z.string().trim().url().optional(),
   director: z.string().trim().min(1).optional(),
+  leadActor: z.string().trim().min(1).optional(),
   releaseDate: z.string().trim().min(1).optional(),
 });
 
@@ -67,6 +68,7 @@ export const rateBody = z.object({
   /** Snapshot from the enriched /score view (popup has it) — stored so "My ratings" needs no lookup. */
   posterUrl: z.string().trim().url().optional(),
   director: z.string().trim().min(1).optional(),
+  leadActor: z.string().trim().min(1).optional(),
 });
 
 export const watchlistQuery = listQuery;

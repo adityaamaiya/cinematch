@@ -37,6 +37,7 @@ export class RecommendLogic implements ILogic<RecommendInput, Recommendation[]> 
       tmdbRating: movie.rating,
       posterUrl: movie.posterUrl,
       director: credits.director,
+      leadActor: credits.leadActor,
     };
   }
 

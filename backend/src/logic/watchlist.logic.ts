@@ -73,6 +73,7 @@ export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistPage> {
         tmdbRating: m.tmdbRating ?? 0,
         posterUrl: m.posterUrl,
         director: m.director,
+        leadActor: m.leadActor,
         released,
       };
     }
@@ -92,6 +93,7 @@ export class WatchlistLogic implements ILogic<WatchlistInput, WatchlistPage> {
       tmdbRating: movie.rating,
       posterUrl: movie.posterUrl,
       director: credits.director,
+      leadActor: credits.leadActor,
       released,
     };
   }

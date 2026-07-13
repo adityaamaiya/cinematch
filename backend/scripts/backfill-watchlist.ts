@@ -27,14 +27,16 @@ async function main(): Promise<void> {
     const preferredLanguages = await Profile.findLanguagePriority(DEFAULT_PROFILE_KEY);
     const watchlist = await Profile.getWatchlist(DEFAULT_PROFILE_KEY);
 
-    const todo = watchlist.filter((m) => !hasSnapshot(m));
-    logger.info(`${watchlist.length} watchlist items; ${todo.length} missing a snapshot`);
+    // Missing a snapshot at all, or a snapshot that predates the leadActor field.
+    const needs = (m: WatchlistMovie): boolean => !hasSnapshot(m) || m.leadActor == null;
+    const todo = watchlist.filter(needs);
+    logger.info(`${watchlist.length} watchlist items; ${todo.length} missing snapshot/lead`);
 
     let filled = 0;
     let missed = 0;
     const enriched: WatchlistMovie[] = [];
     for (const m of watchlist) {
-      if (hasSnapshot(m)) {
+      if (!needs(m)) {
         enriched.push(m);
         continue;
       }
@@ -48,14 +50,16 @@ async function main(): Promise<void> {
       const mediaType = movie.mediaType ?? 'movie';
       const credits = await tmdb.credits(movie.tmdbId, mediaType).catch((): MovieCredits => ({}));
       const released = movie.released !== false;
+      // Preserve any existing snapshot fields; only fill the gaps.
       enriched.push({
         ...m,
         year: m.year ?? movie.year,
-        verdict: released ? verdictBand(movie.rating) : 'Skip',
-        tmdbRating: movie.rating,
-        posterUrl: movie.posterUrl,
-        director: credits.director,
-        releaseDate: movie.releaseDate,
+        verdict: m.verdict ?? (released ? verdictBand(movie.rating) : 'Skip'),
+        tmdbRating: m.tmdbRating ?? movie.rating,
+        posterUrl: m.posterUrl ?? movie.posterUrl,
+        director: m.director ?? credits.director,
+        leadActor: m.leadActor ?? credits.leadActor,
+        releaseDate: m.releaseDate ?? movie.releaseDate,
         addedAt: m.addedAt ?? new Date().toISOString(),
       });
       filled++;

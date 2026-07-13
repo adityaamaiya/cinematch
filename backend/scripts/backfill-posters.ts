@@ -24,14 +24,14 @@ async function main(): Promise<void> {
     const preferredLanguages = await Profile.findLanguagePriority(DEFAULT_PROFILE_KEY);
     const rated = await Profile.getRatedMovies(DEFAULT_PROFILE_KEY);
 
-    const todo = rated.filter((r) => !r.posterUrl || !r.director);
-    logger.info(`${rated.length} ratings; ${todo.length} missing poster/director`);
+    const todo = rated.filter((r) => !r.posterUrl || !r.director || !r.leadActor);
+    logger.info(`${rated.length} ratings; ${todo.length} missing poster/director/lead`);
 
     let filled = 0;
     let missed = 0;
     const enriched: RatedMovie[] = [];
     for (const r of rated) {
-      if (r.posterUrl && r.director) {
+      if (r.posterUrl && r.director && r.leadActor) {
         enriched.push(r);
         continue;
       }
@@ -44,6 +44,7 @@ async function main(): Promise<void> {
           ...r,
           posterUrl: r.posterUrl ?? movie.posterUrl,
           director: r.director ?? credits.director,
+          leadActor: r.leadActor ?? credits.leadActor,
           year: r.year ?? movie.year,
         });
         filled++;

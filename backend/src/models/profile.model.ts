@@ -68,6 +68,7 @@ const ratedMovieSchema = new Schema<RatedMovie>(
     // Snapshot captured when rated in-app (seeded ratings lack these) — see RatedMovie.
     posterUrl: { type: String },
     director: { type: String },
+    leadActor: { type: String },
     ratedAt: { type: String },
   },
   { _id: false },
@@ -84,6 +85,7 @@ const watchlistMovieSchema = new Schema<WatchlistMovie>(
     tmdbRating: { type: Number },
     posterUrl: { type: String },
     director: { type: String },
+    leadActor: { type: String },
     releaseDate: { type: String },
     addedAt: { type: String },
   },

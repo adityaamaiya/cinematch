@@ -10,7 +10,7 @@ export class WatchlistController {
   constructor(private readonly watchlistLogic: WatchlistLogic) {}
 
   add: RequestHandler = asyncHandler(async (req, res) => {
-    const { title, type, year, verdict, tmdbRating, posterUrl, director, releaseDate } =
+    const { title, type, year, verdict, tmdbRating, posterUrl, director, leadActor, releaseDate } =
       watchlistAddBody.parse(req.body);
     // Store the /score snapshot so the list renders with no TMDB call + is verdict-filterable.
     await Profile.addToWatchlist(DEFAULT_PROFILE_KEY, {
@@ -22,6 +22,7 @@ export class WatchlistController {
       tmdbRating,
       posterUrl,
       director,
+      leadActor,
       releaseDate,
     });
     res.json(ok({ added: true }));

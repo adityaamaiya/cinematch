@@ -112,6 +112,7 @@ describe('POST /rate + GET /ratings', () => {
       verdict: 'Perfection',
       posterUrl: undefined,
       director: undefined,
+      leadActor: undefined,
     });
   });
 

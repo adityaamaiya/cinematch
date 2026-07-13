@@ -64,6 +64,11 @@ function color(verdict) {
   return `var(${VERDICT_VAR[verdict] || '--muted'})`;
 }
 
+// "Director · Lead Actor" for list rows (either may be missing).
+function creditLine(r) {
+  return [r.director, r.leadActor].filter(Boolean).join(' · ');
+}
+
 // Half-donut gauge arching over BOTH the rating number and the verdict, all in the verdict colour.
 // The arc fills to rating/10 over a faint same-colour track.
 function scoreNum(rating, verdict) {
@@ -268,6 +273,7 @@ function bindRate(data) {
             verdict: btn.dataset.verdict,
             posterUrl: data.posterUrl,
             director: data.director,
+            leadActor: data.leadActor,
           }),
         });
         if (!res.ok) throw new Error('failed');
@@ -429,7 +435,7 @@ function ratingRowHtml(r) {
       ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
       <span role="button" tabindex="0" class="rec-open wl-meta">
         <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
-        ${r.director ? `<span class="wl-dir">${escapeHtml(r.director)}</span>` : ''}
+        ${creditLine(r) ? `<span class="wl-dir">${escapeHtml(creditLine(r))}</span>` : ''}
       </span>
       <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${escapeHtml(r.verdict)}</span>
     </div>`;
@@ -551,6 +557,7 @@ function bindWatchlistAdd(data) {
         tmdbRating: typeof data?.tmdbRating === 'number' ? data.tmdbRating : undefined,
         posterUrl: data?.posterUrl,
         director: data?.director,
+        leadActor: data?.leadActor,
         releaseDate: data?.releaseDate,
       };
       const res = await fetch(`${await backendUrl()}/watchlist`, {
@@ -610,7 +617,7 @@ function wlRowHtml(r) {
       ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
       <span role="button" tabindex="0" class="rec-open wl-meta">
         <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
-        ${r.director ? `<span class="wl-dir">${escapeHtml(r.director)}</span>` : ''}
+        ${creditLine(r) ? `<span class="wl-dir">${escapeHtml(creditLine(r))}</span>` : ''}
       </span>
       ${chip}
       <button class="wl-remove" title="Remove" aria-label="Remove">✕</button>

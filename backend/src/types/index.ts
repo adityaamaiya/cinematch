@@ -45,8 +45,9 @@ export interface RatedMovie {
   /** Poster snapshot captured when rated in-app (from the enriched /score view) — lets the "My
    * ratings" list show a thumbnail with no extra TMDB call. Absent for the seeded Moctale ratings. */
   posterUrl?: string;
-  /** Director snapshot (shown in the "My ratings" list). Absent for seeded ratings until backfilled. */
+  /** Director + lead actor snapshot (shown in the "My ratings" list). Absent for seeded ratings until backfilled. */
   director?: string;
+  leadActor?: string;
   /** ISO timestamp the rating was made in-app (server-set). Absent for seeded ratings. */
   ratedAt?: string;
 }
@@ -65,6 +66,7 @@ export interface WatchlistMovie {
   tmdbRating?: number;
   posterUrl?: string;
   director?: string;
+  leadActor?: string;
   /** Release date (YYYY-MM-DD) — "Upcoming" is computed from this vs today, so it stays correct. */
   releaseDate?: string;
   /** ISO timestamp added (server-set). */
@@ -182,6 +184,7 @@ export interface Recommendation {
   tmdbRating: number;
   posterUrl?: string;
   director?: string;
+  leadActor?: string;
 }
 
 /** A watchlist entry scored for the "My list" view. */
@@ -193,6 +196,7 @@ export interface WatchlistScored {
   tmdbRating: number;
   posterUrl?: string;
   director?: string;
+  leadActor?: string;
   /** False when the title isn't out yet — the list shows "Upcoming" instead of a verdict. */
   released: boolean;
 }
