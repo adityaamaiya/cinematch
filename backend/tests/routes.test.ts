@@ -52,6 +52,7 @@ beforeEach(() => {
   vi.spyOn(Profile, 'isOnWatchlist').mockResolvedValue(false);
   vi.spyOn(Profile, 'getRating').mockResolvedValue(null);
   vi.spyOn(Profile, 'addRating').mockResolvedValue(1);
+  vi.spyOn(Profile, 'removeFromWatchlist').mockResolvedValue(undefined);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -119,13 +120,25 @@ describe('POST /rate + GET /ratings', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('lists the raw ratings newest-first', async () => {
-    (Profile.getRatedMovies as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+  it('lists ratings paged as { items, hasMore }', async () => {
+    (Profile.getRatedMovies as ReturnType<typeof vi.fn>).mockResolvedValue([
       { title: 'Inception', type: 'Movie', year: 2010, verdict: 'Perfection' },
     ]);
     const res = await request(app).get('/ratings');
     expect(res.status).toBe(200);
-    expect(res.body.data[0]).toMatchObject({ title: 'Inception', verdict: 'Perfection' });
+    expect(res.body.data.items[0]).toMatchObject({ title: 'Inception', verdict: 'Perfection' });
+    expect(res.body.data.hasMore).toBe(false);
+  });
+
+  it('filters ratings by ?verdict', async () => {
+    (Profile.getRatedMovies as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { title: 'Inception', type: 'Movie', year: 2010, verdict: 'Perfection' },
+      { title: 'Meh Movie', type: 'Movie', year: 2011, verdict: 'Skip' },
+    ]);
+    const res = await request(app).get('/ratings').query({ verdict: 'Skip' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.items[0].title).toBe('Meh Movie');
   });
 });
 

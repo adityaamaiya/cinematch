@@ -36,13 +36,13 @@ export class RecommendLogic implements ILogic<RecommendInput, Recommendation[]> 
       this.llmRecommend!.execute({ mood: input.mood, genre: input.genre, limit: input.limit }),
       Profile.getRatedMovies(input.userKey).catch(() => []),
     ]);
-    const watched = new Set(rated.map((m) => norm(m.title)));
+    const watched = new Set(rated.map((m) => key(m.title, m.year)));
     const preferredLanguages = await Profile.findLanguagePriority(input.userKey).catch(() => []);
 
     const recs: Recommendation[] = [];
     for (const s of suggestions) {
       if (recs.length >= input.limit) break;
-      if (watched.has(norm(s.title))) continue;
+      if (watched.has(key(s.title, s.year))) continue;
       const movie = await this.lookup.execute({ title: s.title, year: s.year, preferredLanguages });
       if (!movie) continue; // TMDB can't find it → probable hallucination
       recs.push({
@@ -56,17 +56,29 @@ export class RecommendLogic implements ILogic<RecommendInput, Recommendation[]> 
     return recs;
   }
 
-  // Fallback: explicit genre → mood preset → Drama, then TMDB discover by rating.
+  // Fallback: explicit genre → mood preset → Drama, then TMDB discover by rating. Also drops
+  // already-watched (over-fetching to survive the drops) so mood picks exclude rated titles even
+  // when the LLM is down.
   private async recommendViaDiscover(input: RecommendInput): Promise<Recommendation[]> {
     const genreIds = this.resolveGenreIds(input);
-    const movies = await this.tmdb.discover(genreIds, input.limit);
-    return movies.map((movie) => ({
-      title: movie.title,
-      year: movie.year,
-      verdict: movie.released !== false ? verdictBand(movie.rating) : 'Skip',
-      tmdbRating: movie.rating,
-      posterUrl: movie.posterUrl,
-    }));
+    const [movies, rated] = await Promise.all([
+      this.tmdb.discover(genreIds, input.limit + 10),
+      Profile.getRatedMovies(input.userKey).catch(() => []),
+    ]);
+    const watched = new Set(rated.map((m) => key(m.title, m.year)));
+    const recs: Recommendation[] = [];
+    for (const movie of movies) {
+      if (recs.length >= input.limit) break;
+      if (watched.has(key(movie.title, movie.year))) continue;
+      recs.push({
+        title: movie.title,
+        year: movie.year,
+        verdict: movie.released !== false ? verdictBand(movie.rating) : 'Skip',
+        tmdbRating: movie.rating,
+        posterUrl: movie.posterUrl,
+      });
+    }
+    return recs;
   }
 
   private resolveGenreIds(input: RecommendInput): number[] {
@@ -79,4 +91,5 @@ export class RecommendLogic implements ILogic<RecommendInput, Recommendation[]> 
   }
 }
 
-const norm = (title: string): string => title.trim().toLowerCase();
+// Watched-key: title+year so a same-name different-year film isn't wrongly dropped.
+const key = (title: string, year?: number): string => `${title.trim().toLowerCase()}|${year ?? ''}`;

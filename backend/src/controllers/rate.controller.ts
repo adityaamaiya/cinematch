@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { ok } from '../lib/apiResponse.js';
-import { rateBody } from '../validators/schemas.js';
+import { rateBody, ratingsQuery } from '../validators/schemas.js';
 import { DEFAULT_PROFILE_KEY, Profile } from '../models/profile.model.js';
 import type { RateLogic } from '../logic/rate.logic.js';
 
@@ -15,10 +15,16 @@ export class RateController {
     res.json(ok({ rated: true }));
   });
 
-  // Raw ratings, newest first (addRating prepends). No TMDB enrichment — the row shows the user's
-  // own verdict + the stored poster snapshot; clicking a row opens the enriched /score view.
-  list: RequestHandler = asyncHandler(async (_req, res) => {
-    const items = await Profile.getRatedMovies(DEFAULT_PROFILE_KEY);
-    res.json(ok(items));
+  // Ratings are stored raw (title/verdict/poster snapshot), so listing filters + paginates in memory
+  // — no TMDB. Newest first (addRating prepends). Clicking a row opens the enriched /score view.
+  list: RequestHandler = asyncHandler(async (req, res) => {
+    const { q, verdict, page, limit } = ratingsQuery.parse(req.query);
+    const all = await Profile.getRatedMovies(DEFAULT_PROFILE_KEY);
+    const ql = q?.trim().toLowerCase();
+    const filtered = all.filter(
+      (m) => (!ql || m.title.toLowerCase().includes(ql)) && (!verdict || m.verdict === verdict),
+    );
+    const items = filtered.slice(page * limit, page * limit + limit);
+    res.json(ok({ items, hasMore: (page + 1) * limit < filtered.length, total: filtered.length }));
   });
 }

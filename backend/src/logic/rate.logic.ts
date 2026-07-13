@@ -19,6 +19,9 @@ export class RateLogic implements ILogic<RateInput, { rated: true }> {
 
   async execute({ userKey, ...movie }: RateInput): Promise<{ rated: true }> {
     const sinceRegen = await Profile.addRating(userKey, movie);
+    // Rating means you've watched it → drop it from the "to-finish" watchlist (idempotent no-op if
+    // it wasn't on there). Never let this fail the rating.
+    await Profile.removeFromWatchlist(userKey, movie.title, movie.year).catch(() => {});
     if (this.generateTaste && sinceRegen >= this.regenEvery) {
       // Background — don't make the user wait on Gemini, and never let a regen error fail the rating.
       void this.generateTaste

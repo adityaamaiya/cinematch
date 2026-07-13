@@ -31,6 +31,8 @@ interface ProfileModel extends Model<ProfileDoc> {
   getRatedMovies(userKey: string): Promise<RatedMovie[]>;
   /** Replace the whole ratings array in place (backfill script only — leaves other fields alone). */
   setRatedMovies(userKey: string, ratedMovies: RatedMovie[]): Promise<void>;
+  /** Replace the whole watchlist in place (backfill script only). */
+  setWatchlist(userKey: string, watchlist: WatchlistMovie[]): Promise<void>;
   /** Add/replace a rating (idempotent by title+year). Creates the profile if absent. Returns the
    * new `ratingsSinceRegen` count so the caller can decide whether to trigger a regen. */
   addRating(userKey: string, item: RatedMovie): Promise<number>;
@@ -76,6 +78,13 @@ const watchlistMovieSchema = new Schema<WatchlistMovie>(
     type: { type: String, enum: CONTENT_TYPES, required: true },
     year: { type: Number },
     collectionId: { type: String, required: true },
+    // Snapshot captured at add-time (see WatchlistMovie) — absent on legacy entries.
+    verdict: { type: String, enum: VERDICTS },
+    tmdbRating: { type: Number },
+    posterUrl: { type: String },
+    director: { type: String },
+    releaseDate: { type: String },
+    addedAt: { type: String },
   },
   { _id: false },
 );
@@ -107,6 +116,10 @@ profileSchema.static('getRatedMovies', async function getRatedMovies(this: Profi
 
 profileSchema.static('setRatedMovies', async function setRatedMovies(this: ProfileModel, userKey, ratedMovies: RatedMovie[]) {
   await this.updateOne({ userKey }, { $set: { ratedMovies } }, { upsert: true }).exec();
+});
+
+profileSchema.static('setWatchlist', async function setWatchlist(this: ProfileModel, userKey, watchlist: WatchlistMovie[]) {
+  await this.updateOne({ userKey }, { $set: { watchlist } }, { upsert: true }).exec();
 });
 
 profileSchema.static('addRating', async function addRating(this: ProfileModel, userKey, item: RatedMovie) {
@@ -163,8 +176,9 @@ profileSchema.static(
   async function addToWatchlist(this: ProfileModel, userKey, item: WatchlistMovie) {
     // Idempotent: drop any existing entry for the same title+year, then prepend the fresh one.
     const match = { title: item.title, year: item.year ?? null };
+    const stamped = { ...item, addedAt: item.addedAt ?? new Date().toISOString() };
     await this.updateOne({ userKey }, { $pull: { watchlist: match } }, { upsert: true }).exec();
-    await this.updateOne({ userKey }, { $push: { watchlist: { $each: [item], $position: 0 } } }).exec();
+    await this.updateOne({ userKey }, { $push: { watchlist: { $each: [stamped], $position: 0 } } }).exec();
   },
 );
 

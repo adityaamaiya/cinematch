@@ -10,6 +10,25 @@ const VERDICT_VAR = {
   Perfection: '--perfection',
 };
 
+// Inline Lucide-style icons (stroke = currentColor, so they inherit each button's colour). Emoji
+// looked inconsistent across platforms; these render identically everywhere.
+const ICONS = {
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  refresh:
+    '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+  arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+};
+function ic(name) {
+  return `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
 const view = document.getElementById('view');
 
 async function backendUrl() {
@@ -26,7 +45,7 @@ function effectiveTheme() {
 }
 function setThemeIcon() {
   const btn = document.getElementById('theme-toggle');
-  if (btn) btn.textContent = effectiveTheme() === 'light' ? '☀️' : '🌙';
+  if (btn) btn.innerHTML = effectiveTheme() === 'light' ? ic('sun') : ic('moon');
 }
 async function initTheme() {
   const { theme } = await chrome.storage.local.get('theme');
@@ -127,14 +146,14 @@ function watchHtml(w) {
     .join('');
   if (!groups) return '';
   const head = w.link
-    ? `<a class="watch-link" href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Where to watch on TMDB ↗</a>`
+    ? `<a class="watch-link" href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Where to watch on TMDB ${ic('external')}</a>`
     : '';
   return `<div class="watch"><h4>Where to watch</h4>${groups}</div>${head}`;
 }
 
 function trailerHtml(url) {
   return url
-    ? `<a class="trailer" href="${escapeHtml(url)}" target="_blank" rel="noopener">▶ Watch trailer</a>`
+    ? `<a class="trailer" href="${escapeHtml(url)}" target="_blank" rel="noopener">${ic('play')} Watch trailer</a>`
     : '';
 }
 
@@ -196,9 +215,8 @@ function watchlistBtnHtml(data) {
   const added = data.onWatchlist;
   return `<button class="wl-add" data-title="${escapeHtml(data.title)}"
       data-year="${data.year ?? ''}" data-type="${escapeHtml(data.type || 'Movie')}"${added ? ' disabled' : ''}>${
-        added ? '✓ On your watchlist' : '＋ Add to watchlist'
-      }</button>
-    <button class="ghost" id="score-mylist">📋 My watchlist</button>`;
+        added ? `${ic('check')} On your watchlist` : `${ic('plus')} Add to watchlist`
+      }</button>`;
 }
 
 // "Rate this" — four verdict chips (your own rating, not the objective verdict). The stored rating
@@ -214,14 +232,22 @@ function rateSectionHtml(data) {
     <div class="rate">
       <div class="rate-label">${data.userVerdict ? 'Your rating' : 'Rate this'}</div>
       <div class="rate-row">${chips}</div>
-    </div>
-    <button class="ghost" id="show-ratings">⭐ My ratings</button>`;
+    </div>`;
+}
+
+// My watchlist + My ratings side by side (one row). Handlers are bound by id in bindWatchlistAdd /
+// bindRate, so placement here is free.
+function listNavHtml() {
+  return `<div class="list-nav">
+      <button class="ghost" id="score-mylist">${ic('bookmark')} My watchlist</button>
+      <button class="ghost" id="show-ratings">${ic('star')} My ratings</button>
+    </div>`;
 }
 
 // "Refresh taste" lives on its own at the very bottom (after watch providers) so it isn't mis-clicked
 // while rating or opening a list — it's an AI call + full rebuild (also guarded by a confirm).
 function refreshTasteBtnHtml() {
-  return `<button class="ghost" id="refresh-taste" style="margin-top:16px">↻ Refresh taste profile</button>`;
+  return `<button class="ghost" id="refresh-taste" style="margin-top:16px">${ic('refresh')} Refresh taste profile</button>`;
 }
 
 function bindRate(data) {
@@ -276,39 +302,145 @@ function bindRate(data) {
 
 // "My ratings": the raw ratings list, newest first (verdict chip + optional poster thumb). Click an
 // item to re-score it (the enriched view, where you can re-rate). `back` returns where you opened it.
-async function renderRatings(back) {
+// --- shared list search + verdict filter (watchlist / ratings) ---
+const FILTER_VERDICTS = ['Skip', 'Timepass', 'Go For It', 'Perfection'];
+function filterBarHtml() {
+  const chips = [['', 'All'], ...FILTER_VERDICTS.map((v) => [v, v])]
+    .map(([val, label]) => {
+      const rc = val ? ` style="--rc:var(${VERDICT_VAR[val]})"` : '';
+      return `<button class="vf${val === '' ? ' active' : ''}" data-v="${escapeHtml(val)}"${rc}>${label}</button>`;
+    })
+    .join('');
+  return `<div class="list-filter">
+      <input class="list-search" placeholder="Search title…" />
+      <div class="vf-row">${chips}</div>
+    </div>`;
+}
+// Wire the filter bar; onChange(state) fires on search input (debounced) + verdict-chip clicks.
+function bindFilterBar(root, onChange) {
+  const state = { q: '', verdict: '' };
+  const search = root.querySelector('.list-search');
+  let t;
+  search.addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      state.q = search.value;
+      onChange(state);
+    }, 180);
+  });
+  root.querySelectorAll('.vf').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      root.querySelectorAll('.vf').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.verdict = btn.dataset.v;
+      onChange(state);
+    }),
+  );
+  return state;
+}
+
+// Bind "open → re-score" on new rows (ratings + recommend rows; no remove button).
+function bindOpenRows(recs) {
+  recs.querySelectorAll('.rec:not([data-bound])').forEach((el) => {
+    el.dataset.bound = '1';
+    const title = el.dataset.title;
+    const year = el.dataset.year ? Number(el.dataset.year) : undefined;
+    el.querySelector('.rec-open').addEventListener('click', () => pickTitle(title, year));
+  });
+}
+
+// Generic BE-paged + BE-filtered + infinite-scroll list, shared by My ratings & My watchlist. The
+// server filters by ?q&verdict and paginates; we append pages and refetch from page 0 on filter
+// change. An IntersectionObserver on the sentinel loads the next page as it scrolls into view.
+async function renderPagedList({ endpoint, back, rowHtml, bindRow, emptyMsg }) {
   toggleNotThis(null);
   const goBack = typeof back === 'function' ? back : () => renderManual();
-  view.innerHTML = `<p class="muted center">Loading your ratings…</p>`;
-  try {
-    const res = await fetch(`${await backendUrl()}/ratings`);
-    const body = await res.json();
-    if (!body.success) throw new Error(body.error?.message || 'Request failed');
-    const items = body.data;
-    const list = items.length
-      ? items
-          .map(
-            (r) => `<div class="rec wl-item" data-title="${escapeHtml(r.title)}" data-year="${r.year ?? ''}">
-              ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
-              <span role="button" tabindex="0" class="rec-open wl-meta">
-                <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
-              </span>
-              <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${escapeHtml(r.verdict)}</span>
-            </div>`,
-          )
-          .join('')
-      : `<p class="muted center">No ratings yet. Rate titles from any movie page.</p>`;
-    view.innerHTML = `<button class="ghost" id="rt-back">← Back</button><div id="recs">${list}</div>`;
+  view.innerHTML = `
+    <button class="ghost" id="pl-back">${ic('arrowLeft')} Back</button>
+    ${filterBarHtml()}
+    <div id="recs"></div>
+    <p class="muted center" id="pl-more" hidden></p>`;
+  document.getElementById('pl-back').addEventListener('click', goBack);
+  const recs = document.getElementById('recs');
+  const more = document.getElementById('pl-more');
 
-    document.getElementById('rt-back').addEventListener('click', goBack);
-    view.querySelectorAll('.rec').forEach((el) => {
-      const title = el.dataset.title;
-      const year = el.dataset.year ? Number(el.dataset.year) : undefined;
-      el.querySelector('.rec-open').addEventListener('click', () => pickTitle(title, year));
-    });
-  } catch (err) {
-    renderManual(`Couldn’t load ratings (${escapeHtml(err.message)})`);
+  let q = '';
+  let verdict = '';
+  let page = 0;
+  let hasMore = true;
+  let loading = false;
+
+  async function loadNext() {
+    if (loading || !hasMore) return;
+    loading = true;
+    more.hidden = false;
+    more.textContent = 'Loading…';
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      if (q) params.set('q', q);
+      if (verdict) params.set('verdict', verdict);
+      const res = await fetch(`${await backendUrl()}${endpoint}?${params}`);
+      const body = await res.json();
+      if (!body.success) throw new Error(body.error?.message || 'Request failed');
+      body.data.items.forEach((r) => recs.insertAdjacentHTML('beforeend', rowHtml(r)));
+      bindRow(recs);
+      hasMore = body.data.hasMore;
+      page += 1;
+      loading = false;
+      if (hasMore) {
+        more.hidden = false; // keep the sentinel visible so the observer can fire on scroll
+        more.textContent = 'Loading…';
+      } else if (recs.children.length === 0) {
+        more.hidden = false;
+        more.textContent = q || verdict ? 'No matches.' : emptyMsg;
+      } else {
+        more.hidden = true;
+      }
+    } catch (err) {
+      loading = false;
+      hasMore = false;
+      more.hidden = false;
+      more.textContent = `Couldn’t load (${escapeHtml(err.message)})`;
+    }
   }
+
+  // Filter/search change → reset and refetch from the server (BE-driven).
+  bindFilterBar(view, (state) => {
+    q = state.q;
+    verdict = state.verdict;
+    page = 0;
+    hasMore = true;
+    recs.innerHTML = '';
+    loadNext();
+  });
+
+  const io = new IntersectionObserver((entries) => entries[0].isIntersecting && loadNext(), {
+    root: view,
+    rootMargin: '150px',
+  });
+  io.observe(more);
+  await loadNext();
+}
+
+// One ratings row (user's own verdict + poster snapshot). Click → re-score (enriched view).
+function ratingRowHtml(r) {
+  return `<div class="rec wl-item" data-title="${escapeHtml(r.title)}" data-year="${r.year ?? ''}">
+      ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
+      <span role="button" tabindex="0" class="rec-open wl-meta">
+        <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
+      </span>
+      <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${escapeHtml(r.verdict)}</span>
+    </div>`;
+}
+
+function renderRatings(back) {
+  return renderPagedList({
+    endpoint: '/ratings',
+    back,
+    rowHtml: ratingRowHtml,
+    bindRow: bindOpenRows,
+    emptyMsg: 'No ratings yet. Rate titles from any movie page.',
+  });
 }
 
 // A released film with almost no votes has a meaningless rating (0 → would read "Skip"). Show it
@@ -337,11 +469,15 @@ function renderStatus(data, status) {
         ${ratingsLine(data)}
       </div>
     </div>
-    ${tasteHtml(data)}
     ${creditsHtml(data)}
+    ${tasteHtml(data)}
+    ${rateSectionHtml(data)}
+    ${listNavHtml()}
     ${trailerHtml(data.trailerUrl)}
-    ${watchlistBtnHtml(data)}`;
-  bindWatchlistAdd();
+    ${watchlistBtnHtml(data)}
+    ${refreshTasteBtnHtml()}`;
+  bindWatchlistAdd(data);
+  bindRate(data); // wires the rate chips, "My ratings" nav, and Refresh taste
   toggleNotThis(data.title);
 }
 
@@ -373,19 +509,20 @@ function renderScore(data) {
       </div>
     </div>
     ${creditsHtml(data)}
+    ${awardsHtml(data)}
     ${tasteHtml(data)}
     ${rateSectionHtml(data)}
-    ${awardsHtml(data)}
+    ${listNavHtml()}
     ${trailerHtml(data.trailerUrl)}
     ${watchlistBtnHtml(data)}
     ${watchHtml(data.watch)}
     ${refreshTasteBtnHtml()}`;
-  bindWatchlistAdd();
+  bindWatchlistAdd(data);
   bindRate(data);
   toggleNotThis(data.title);
 }
 
-function bindWatchlistAdd() {
+function bindWatchlistAdd(data) {
   const btn = view.querySelector('.wl-add');
   const myList = view.querySelector('#score-mylist');
   if (myList) {
@@ -401,10 +538,16 @@ function bindWatchlistAdd() {
     btn.disabled = true;
     btn.textContent = 'Adding…';
     try {
+      // Snapshot the enriched /score data so the watchlist list renders with no TMDB call.
       const body = {
         title: btn.dataset.title,
         type: btn.dataset.type,
         year: btn.dataset.year ? Number(btn.dataset.year) : undefined,
+        verdict: data?.released !== false ? data?.verdict : undefined,
+        tmdbRating: typeof data?.tmdbRating === 'number' ? data.tmdbRating : undefined,
+        posterUrl: data?.posterUrl,
+        director: data?.director,
+        releaseDate: data?.releaseDate,
       };
       const res = await fetch(`${await backendUrl()}/watchlist`, {
         method: 'POST',
@@ -412,7 +555,8 @@ function bindWatchlistAdd() {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('failed');
-      btn.textContent = '✓ On your watchlist';
+      btn.disabled = true;
+      btn.innerHTML = `${ic('check')} On your watchlist`;
     } catch {
       btn.disabled = false;
       btn.textContent = 'Couldn’t add — retry';
@@ -428,8 +572,10 @@ function renderManual(message, prefill) {
       <input id="q" placeholder="Movie or show title…" value="${prefill ? escapeHtml(prefill) : ''}" autofocus />
       <button type="submit">Check</button>
     </form>
-    <button class="ghost" id="show-watchlist">📋 My watchlist</button>
-    <button class="ghost" id="show-ratings">⭐ My ratings</button>
+    <div class="list-nav">
+      <button class="ghost" id="show-watchlist">${ic('bookmark')} My watchlist</button>
+      <button class="ghost" id="show-ratings">${ic('star')} My ratings</button>
+    </div>
     <p class="muted" style="margin:14px 0 4px">Or pick a mood:</p>
     <div class="moods">${MOODS.map((m) => `<button class="mood" data-mood="${m}">${m}</button>`).join('')}</div>
     <div id="recs"></div>`;
@@ -450,54 +596,52 @@ function renderManual(message, prefill) {
 
 // "My list": the watchlist, scored + taste-ranked. Click an item to re-score it, ✕ to remove.
 // `back` returns to wherever you opened it from (the movie you were on, or the search view).
-async function renderWatchlist(back) {
-  toggleNotThis(null);
-  const goBack = typeof back === 'function' ? back : () => renderManual();
-  view.innerHTML = `<p class="muted center">Loading your watchlist…</p>`;
-  try {
-    const res = await fetch(`${await backendUrl()}/watchlist`);
-    const body = await res.json();
-    if (!body.success) throw new Error(body.error?.message || 'Request failed');
-    const items = body.data;
-    const chip = (r) =>
-      r.released === false
-        ? `<span class="chip chip-upcoming">Upcoming</span>`
-        : `<span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${r.verdict}</span>`;
-    const list = items.length
-      ? items
-          .map(
-            (r) => `<div class="rec wl-item" data-title="${escapeHtml(r.title)}" data-year="${r.year ?? ''}">
-              ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
-              <span role="button" tabindex="0" class="rec-open wl-meta">
-                <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
-                ${r.director ? `<span class="wl-dir">${escapeHtml(r.director)}</span>` : ''}
-              </span>
-              ${chip(r)}
-              <button class="wl-remove" title="Remove" aria-label="Remove">✕</button>
-            </div>`,
-          )
-          .join('')
-      : `<p class="muted center">Your watchlist is empty. Add titles from any movie page.</p>`;
-    view.innerHTML = `<button class="ghost" id="wl-back">← Back</button><div id="recs">${list}</div>`;
+// One watchlist row (scored + poster thumb). Verdict chip, or "Upcoming" for unreleased.
+function wlRowHtml(r) {
+  const chip =
+    r.released === false
+      ? `<span class="chip chip-upcoming">Upcoming</span>`
+      : `<span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${r.verdict}</span>`;
+  return `<div class="rec wl-item" data-title="${escapeHtml(r.title)}" data-year="${r.year ?? ''}">
+      ${r.posterUrl ? `<img class="wl-thumb" src="${escapeHtml(r.posterUrl)}" alt="" />` : '<span class="wl-thumb wl-thumb-empty"></span>'}
+      <span role="button" tabindex="0" class="rec-open wl-meta">
+        <span class="wl-title">${escapeHtml(r.title)}${r.year ? ` · ${r.year}` : ''}</span>
+        ${r.director ? `<span class="wl-dir">${escapeHtml(r.director)}</span>` : ''}
+      </span>
+      ${chip}
+      <button class="wl-remove" title="Remove" aria-label="Remove">✕</button>
+    </div>`;
+}
 
-    document.getElementById('wl-back').addEventListener('click', goBack);
-    view.querySelectorAll('.rec').forEach((el) => {
-      const title = el.dataset.title;
-      const year = el.dataset.year ? Number(el.dataset.year) : undefined;
-      el.querySelector('.rec-open').addEventListener('click', () => pickTitle(title, year));
-      el.querySelector('.wl-remove').addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await fetch(`${await backendUrl()}/watchlist`, {
-          method: 'DELETE',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ title, year }),
-        });
-        renderWatchlist();
+// Bind newly-appended rows only (open → re-score; ✕ → remove then reload the list).
+function bindWlRows(recs, reload) {
+  recs.querySelectorAll('.rec:not([data-bound])').forEach((el) => {
+    el.dataset.bound = '1';
+    const title = el.dataset.title;
+    const year = el.dataset.year ? Number(el.dataset.year) : undefined;
+    el.querySelector('.rec-open').addEventListener('click', () => pickTitle(title, year));
+    el.querySelector('.wl-remove').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await fetch(`${await backendUrl()}/watchlist`, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title, year }),
       });
+      reload();
     });
-  } catch (err) {
-    renderManual(`Couldn’t load watchlist (${escapeHtml(err.message)})`);
-  }
+  });
+}
+
+// "My watchlist": snapshot-driven, so the server filters + paginates (no TMDB); same paged list as
+// ratings, with a ✕-remove per row.
+function renderWatchlist(back) {
+  return renderPagedList({
+    endpoint: '/watchlist',
+    back,
+    rowHtml: wlRowHtml,
+    bindRow: (recs) => bindWlRows(recs, () => renderWatchlist(back)),
+    emptyMsg: 'Your watchlist is empty. Add titles from any movie page.',
+  });
 }
 
 function escapeHtml(s) {
@@ -525,24 +669,10 @@ async function recommend(mood) {
     const res = await fetch(`${await backendUrl()}/recommend?mood=${encodeURIComponent(mood)}`);
     const body = await res.json();
     if (!body.success) throw new Error(body.error?.message || 'Request failed');
-    recs.innerHTML = body.data
-      .map(
-        (r) => `<div class="rec" role="button" tabindex="0" data-title="${escapeHtml(r.title)}">
-          <span>${escapeHtml(r.title)}</span>
-          <span class="chip" style="background:${color(r.verdict)};color:#0a0a0a">${r.verdict}</span></div>`,
-      )
-      .join('');
-    // Click / Enter a pick → score it (and remember it for this tab).
-    recs.querySelectorAll('.rec').forEach((el) => {
-      const go = () => pickTitle(el.dataset.title);
-      el.addEventListener('click', go);
-      el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          go();
-        }
-      });
-    });
+    // Enriched rows (poster + year + verdict chip) — same look as the ratings/watchlist lists.
+    // Recommendation already carries posterUrl/year/verdict, so no extra fetch.
+    recs.innerHTML = body.data.map(ratingRowHtml).join('');
+    bindOpenRows(recs);
   } catch (err) {
     recs.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
   }

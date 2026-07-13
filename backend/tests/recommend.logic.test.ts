@@ -73,7 +73,7 @@ describe('RecommendLogic (LLM path)', () => {
     vi.spyOn(Profile, 'findLanguagePriority').mockResolvedValue([]);
     const llm = new LlmRecommend(
       gemini([
-        { title: 'seen it' }, // already watched (case-insensitive) → dropped
+        { title: 'seen it', year: 2001 }, // already watched (matched on title+year) → dropped
         { title: 'Ghost Movie' }, // TMDB can't resolve → dropped
         { title: 'Good Pick' }, // survives
       ]),
@@ -83,6 +83,16 @@ describe('RecommendLogic (LLM path)', () => {
     const out = await logic.execute({ limit: 5, userKey: 'default' });
     expect(out.map((r) => r.title)).toEqual(['Good Pick']);
     expect(out[0].verdict).toBe('Perfection'); // rating 8 → Perfection band
+  });
+
+  it('title+year: a same-name but different-year suggestion is NOT dropped', async () => {
+    vi.spyOn(Profile, 'getRatedMovies').mockResolvedValue([
+      { title: 'Dune', type: 'Movie', year: 1984, verdict: 'Timepass' },
+    ]);
+    vi.spyOn(Profile, 'findLanguagePriority').mockResolvedValue([]);
+    const llm = new LlmRecommend(gemini([{ title: 'Dune', year: 2021 }]), 'profile');
+    const out = await new RecommendLogic(fakeTmdb(), fakeLookup(), llm).execute({ limit: 5, userKey: 'default' });
+    expect(out.map((r) => r.title)).toEqual(['Dune']); // 2021 ≠ rated 1984 → kept
   });
 
   it('falls back to discover when Gemini errors', async () => {
@@ -98,8 +108,19 @@ describe('RecommendLogic (LLM path)', () => {
   });
 
   it('uses discover directly when no LLM is configured', async () => {
+    vi.spyOn(Profile, 'getRatedMovies').mockResolvedValue([]);
     const logic = new RecommendLogic(fakeTmdb(), fakeLookup());
     const out = await logic.execute({ limit: 5, mood: 'intense', userKey: 'default' });
     expect(out.map((r) => r.title)).toEqual(['Discovered']);
+  });
+
+  it('discover fallback also drops already-rated titles', async () => {
+    // Discover returns "Discovered" (year 2000); the user has rated exactly that → dropped.
+    vi.spyOn(Profile, 'getRatedMovies').mockResolvedValue([
+      { title: 'Discovered', type: 'Movie', year: 2000, verdict: 'Go For It' },
+    ]);
+    const logic = new RecommendLogic(fakeTmdb(), fakeLookup());
+    const out = await logic.execute({ limit: 5, mood: 'intense', userKey: 'default' });
+    expect(out).toEqual([]);
   });
 });

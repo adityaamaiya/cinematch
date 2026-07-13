@@ -49,13 +49,24 @@ export interface RatedMovie {
   ratedAt?: string;
 }
 
-/** A watchlist entry (no verdict — it's a "want to watch"). */
+/** A watchlist entry. Snapshot fields are captured at add-time from the enriched /score view so the
+ * list renders with no TMDB call and is filterable by verdict; they're frozen (a "to-finish" list —
+ * click the row for the live number). Absent on legacy entries added before snapshotting. */
 export interface WatchlistMovie {
   title: string;
   type: ContentType;
   year?: number;
   /** Where it came from: a Moctale collection id, "seed", or "manual" (added from the extension). */
   collectionId: string;
+  /** Objective TMDB-band verdict at add-time. */
+  verdict?: Verdict;
+  tmdbRating?: number;
+  posterUrl?: string;
+  director?: string;
+  /** Release date (YYYY-MM-DD) — "Upcoming" is computed from this vs today, so it stays correct. */
+  releaseDate?: string;
+  /** ISO timestamp added (server-set). */
+  addedAt?: string;
 }
 
 /** Normalised result of a TMDB lookup for one title. */

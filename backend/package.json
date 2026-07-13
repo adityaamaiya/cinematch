@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "seed": "tsx scripts/seed-profile.ts",
     "gen-taste": "tsx scripts/gen-taste.ts",
-    "backfill-posters": "tsx scripts/backfill-posters.ts"
+    "backfill-posters": "tsx scripts/backfill-posters.ts",
+    "backfill-watchlist": "tsx scripts/backfill-watchlist.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

@@ -42,6 +42,21 @@ export const watchlistAddBody = z.object({
   title: z.string().trim().min(1, 'title is required'),
   type: contentType.default('Movie'),
   year: z.coerce.number().int().optional(),
+  // Snapshot from the enriched /score view (popup has it) → list renders with no TMDB call.
+  verdict: verdict.optional(),
+  tmdbRating: z.number().optional(),
+  posterUrl: z.string().trim().url().optional(),
+  director: z.string().trim().min(1).optional(),
+  releaseDate: z.string().trim().min(1).optional(),
+});
+
+// Shared query for the paginated + filterable list endpoints (/ratings, /watchlist). Both store a
+// verdict now, so filtering is a server-side match.
+export const listQuery = z.object({
+  q: z.string().trim().optional(),
+  verdict: verdict.optional(),
+  page: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
 export const rateBody = z.object({
@@ -53,6 +68,9 @@ export const rateBody = z.object({
   posterUrl: z.string().trim().url().optional(),
 });
 
+export const watchlistQuery = listQuery;
+export const ratingsQuery = listQuery;
+
 export const watchlistDeleteBody = z.object({
   title: z.string().trim().min(1, 'title is required'),
   year: z.coerce.number().int().optional(),
@@ -62,5 +80,6 @@ export type ScoreQuery = z.infer<typeof scoreQuery>;
 export type RecommendQuery = z.infer<typeof recommendQuery>;
 export type SyncProfileBody = z.infer<typeof syncProfileBody>;
 export type WatchlistAddBody = z.infer<typeof watchlistAddBody>;
+export type ListQuery = z.infer<typeof listQuery>;
 export type RateBody = z.infer<typeof rateBody>;
 export type WatchlistDeleteBody = z.infer<typeof watchlistDeleteBody>;

@@ -43,6 +43,9 @@
       * { box-sizing: border-box; }
       body {
         width: 460px;
+        /* Chrome caps extension popups at 600px tall — anything larger makes the popup WINDOW scroll
+           on top of #view (two scrollbars). So 600 is the ceiling; #view below the hero is the only
+           scroll region. */
         height: 600px;
         margin: 0;
         padding: 18px;
@@ -94,11 +97,11 @@
       .verdict { font-size: 26px; font-weight: 700; margin-top: 2px; }
       .rating { color: var(--muted); font-size: 13px; margin-top: 2px; }
       /* Highlighted director + lead actor. */
-      .credits { margin: 14px 0 2px; display: grid; gap: 6px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+      .credits { margin: 12px 0 0; display: grid; gap: 6px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
       .cr { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; }
       .cr-k { color: var(--muted); font-size: 11px; letter-spacing: .03em; text-transform: uppercase; }
       .cr-v { color: var(--fg); font-weight: 600; text-align: right; }
-      .awards { font-size: 12.5px; margin: 10px 0 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface); color: var(--awards-fg); line-height: 1.35; }
+      .awards { font-size: 12.5px; margin: 12px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--surface); color: var(--awards-fg); line-height: 1.35; }
       /* Taste line has its OWN vibe palette, deliberately distinct from the verdict colours.
          meter card: emoji chip + "NN% match" + why, with a thin accent fill-bar = match %.
          Accent colour per level (strong rose, mild sky, mismatch amber) — never a loud fill. */
@@ -108,7 +111,7 @@
         display: flex;
         align-items: center;
         gap: 11px;
-        margin: 12px 0 4px;
+        margin: 12px 0 0;
         padding: 11px 13px 14px;
         border-radius: 12px;
         background: var(--surface);
@@ -173,34 +176,51 @@
       .wl-dir { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .trailer {
         display: flex; align-items: center; justify-content: center; gap: 7px;
-        margin: 14px 0 4px; padding: 9px 12px; width: 100%;
+        margin: 12px 0 0; padding: 9px 12px; width: 100%; min-height: 40px;
         background: #e11d2a; color: #fff; font-weight: 600; font-size: 13px;
         border-radius: 10px; text-decoration: none; transition: background .12s ease;
       }
       .trailer:hover { background: #c81824; }
       .watch-link {
         display: flex; align-items: center; justify-content: center; gap: 7px;
-        margin: 12px 0 4px; padding: 9px 12px; width: 100%;
+        margin: 12px 0 0; padding: 9px 12px; width: 100%; min-height: 40px;
         background: var(--surface); color: var(--fg); border: 1px solid var(--line);
         font-weight: 600; font-size: 13px; border-radius: 10px; text-decoration: none;
         transition: background .12s ease, border-color .12s ease;
       }
       .watch-link:hover { background: var(--surface-2); border-color: var(--line-2); }
       .wl-add {
-        display: block; width: 100%; margin: 12px 0 4px; padding: 9px 12px;
+        display: flex; align-items: center; justify-content: center; gap: 7px;
+        width: 100%; margin: 12px 0 0; padding: 9px 12px; min-height: 40px;
         background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 10px;
         font-weight: 600; font-size: 13px; cursor: pointer; transition: background .12s ease, border-color .12s ease;
       }
       .wl-add:hover:enabled { background: var(--surface-2); border-color: var(--line-2); }
       .wl-add:disabled { color: var(--goforit); cursor: default; }
       .ghost {
-        display: block; width: 100%; margin-top: 8px; padding: 8px 12px; background: transparent;
+        display: flex; align-items: center; justify-content: center; gap: 7px;
+        width: 100%; margin-top: 12px; padding: 8px 12px; min-height: 40px; background: transparent;
         color: var(--muted); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; cursor: pointer;
       }
       .ghost:hover { background: var(--surface); color: var(--fg); }
+      .ic { flex: 0 0 auto; }
+      /* My watchlist + My ratings share one row. */
+      .list-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+      .list-nav .ghost { margin-top: 0; }
+      /* Search + verdict-filter bar atop the watchlist / ratings lists (sticky under the Back button). */
+      .list-filter { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+      .list-search { width: 100%; }
+      .vf-row { display: flex; flex-wrap: wrap; gap: 6px; }
+      .vf {
+        padding: 5px 10px; font-size: 11px; font-weight: 700; line-height: 1;
+        background: var(--surface); color: var(--fg); border: 1px solid var(--line);
+        border-radius: 999px; cursor: pointer;
+      }
+      .vf:hover { border-color: var(--rc, var(--line-2)); }
+      .vf.active { background: var(--rc, var(--fg)); color: var(--bg); border-color: var(--rc, var(--fg)); }
       .ghost:disabled { opacity: .6; cursor: default; }
       /* Rate-this row: four verdict chips coloured by their verdict; the active one fills. */
-      .rate { margin: 14px 0 4px; }
+      .rate { margin: 12px 0 0; }
       .rate-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
       .rate-row { display: flex; gap: 6px; }
       .rate-chip {
@@ -220,7 +240,7 @@
         cursor: pointer; border-radius: 6px;
       }
       .wl-remove:hover { background: var(--surface-2); color: var(--skip); }
-      .watch { margin-top: 14px; }
+      .watch { margin-top: 12px; }
       .watch h4 {
         margin: 0 0 7px; font-size: 11px; font-weight: 600; letter-spacing: .04em;
         text-transform: uppercase; color: var(--muted);

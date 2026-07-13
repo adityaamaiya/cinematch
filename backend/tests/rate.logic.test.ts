@@ -15,7 +15,10 @@ function fakeGen(execute = vi.fn().mockResolvedValue(true)): GenerateTasteLogic 
 const movie = { title: 'Inception', type: 'Movie', year: 2010, verdict: 'Perfection' } as const;
 
 afterEach(() => vi.restoreAllMocks());
-beforeEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.restoreAllMocks();
+  vi.spyOn(Profile, 'removeFromWatchlist').mockResolvedValue(undefined);
+});
 
 describe('RateLogic', () => {
   it('fires a regen when the since-regen count reaches the threshold', async () => {
@@ -48,5 +51,11 @@ describe('RateLogic', () => {
     vi.spyOn(Profile, 'addRating').mockResolvedValue(50);
     const res = await new RateLogic(10, silent).execute({ userKey: 'default', ...movie });
     expect(res).toEqual({ rated: true });
+  });
+
+  it('auto-removes the rated title from the watchlist', async () => {
+    vi.spyOn(Profile, 'addRating').mockResolvedValue(1);
+    await new RateLogic(10, silent).execute({ userKey: 'default', ...movie });
+    expect(Profile.removeFromWatchlist).toHaveBeenCalledWith('default', 'Inception', 2010);
   });
 });

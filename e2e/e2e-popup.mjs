@@ -60,18 +60,23 @@ async function main() {
     lastRate = JSON.parse(route.request().postData() || '{}');
     route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, data: { rated: true } }) });
   });
-  await page.route('**/ratings', (route) =>
+  // BE-driven list: honor ?q / ?verdict and return the paged {items, hasMore} shape.
+  const RATINGS = [
+    { title: 'Parasite', year: 2019, type: 'Movie', verdict: 'Perfection', posterUrl: 'https://img/parasite.jpg' },
+    { title: 'Fast X', year: 2023, type: 'Movie', verdict: 'Skip' },
+  ];
+  await page.route('**/ratings*', (route) => {
+    const u = new URL(route.request().url());
+    const q = (u.searchParams.get('q') || '').toLowerCase();
+    const verdict = u.searchParams.get('verdict') || '';
+    const items = RATINGS.filter(
+      (r) => (!q || r.title.toLowerCase().includes(q)) && (!verdict || r.verdict === verdict),
+    );
     route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        data: [
-          { title: 'Parasite', year: 2019, type: 'Movie', verdict: 'Perfection', posterUrl: 'https://img/parasite.jpg' },
-          { title: 'Fast X', year: 2023, type: 'Movie', verdict: 'Skip' },
-        ],
-      }),
-    }),
-  );
+      body: JSON.stringify({ success: true, data: { items, hasMore: false } }),
+    });
+  });
 
   await page.goto(popupPath);
 
@@ -111,8 +116,29 @@ async function main() {
   await page.waitForSelector('.rec', { timeout: 5000 });
   const ratingsText = await page.locator('#recs').innerText();
   assert.ok(ratingsText.includes('Parasite') && ratingsText.includes('Fast X'), 'ratings list renders titles');
-  assert.ok(await page.locator('#rt-back').count(), 'ratings view has a back button');
-  await page.locator('#rt-back').click();
+  assert.ok(await page.locator('#pl-back').count(), 'ratings view has a back button');
+
+  // Search filters the list client-side.
+  await page.locator('.list-search').fill('para');
+  await page.waitForFunction(
+    () => {
+      const t = document.querySelector('#recs').innerText;
+      return t.includes('Parasite') && !t.includes('Fast X');
+    },
+    { timeout: 3000 },
+  );
+  // Verdict filter: clear search, pick "Skip" → only the Skip-rated title shows.
+  await page.locator('.list-search').fill('');
+  await page.locator('.vf', { hasText: 'Skip' }).click();
+  await page.waitForFunction(
+    () => {
+      const t = document.querySelector('#recs').innerText;
+      return t.includes('Fast X') && !t.includes('Parasite');
+    },
+    { timeout: 3000 },
+  );
+
+  await page.locator('#pl-back').click();
   await page.waitForSelector('#score-num', { timeout: 5000 }); // back returns to the scored title
 
   // "Not this title?" escape hatch → switches to manual search, pre-filled with the wrong guess.
