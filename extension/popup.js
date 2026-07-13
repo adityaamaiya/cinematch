@@ -376,7 +376,7 @@ async function renderPagedList({ endpoint, back, rowHtml, bindRow, emptyMsg }) {
     more.hidden = false;
     more.textContent = 'Loading…';
     try {
-      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      const params = new URLSearchParams({ page: String(page), limit: '50' });
       if (q) params.set('q', q);
       if (verdict) params.set('verdict', verdict);
       const res = await fetch(`${await backendUrl()}${endpoint}?${params}`);

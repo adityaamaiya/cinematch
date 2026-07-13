@@ -49,8 +49,11 @@ export function createApp(deps: AppDeps): Express {
   app.set('trust proxy', 1); // nginx is one hop in front — use X-Forwarded-For for req.ip
   app.use(express.json({ limit: '2mb' })); // profile syncs can be largish
 
-  // Throttle the public TMDB-backed endpoints per IP (protects the shared TMDB quota).
+  // Tight limit on the TMDB-backed endpoints (/score, /recommend) — protects the shared TMDB quota.
   const publicLimiter = rateLimit({ windowMs: 60_000, max: 60 });
+  // The watchlist/ratings lists are pure Mongo reads (snapshot data, no TMDB) and infinite-scroll a
+  // page per scroll, so they get a much higher cap — the TMDB-protection limit doesn't apply to them.
+  const listLimiter = rateLimit({ windowMs: 60_000, max: 300 });
 
   // --- wire dependencies (interface → concrete, one place) ---
   const lookup = new MovieLookup(deps.tmdb, logger);
@@ -84,14 +87,14 @@ export function createApp(deps: AppDeps): Express {
   app.use(publicLimiter, recommendRouter(recommendController.recommend));
   app.use(profileRouter(profileController.syncProfile, deps.syncToken));
   app.use(
-    publicLimiter,
+    listLimiter,
     watchlistRouter({
       add: watchlistController.add,
       list: watchlistController.list,
       remove: watchlistController.remove,
     }),
   );
-  app.use(publicLimiter, rateRouter({ add: rateController.add, list: rateController.list }));
+  app.use(listLimiter, rateRouter({ add: rateController.add, list: rateController.list }));
   // Manual regen is an LLM hit — throttle it harder than the general public limit.
   if (tasteController) {
     const regenLimiter = rateLimit({ windowMs: 60_000, max: 5 });
